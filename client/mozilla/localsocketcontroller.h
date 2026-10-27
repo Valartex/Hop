@@ -16,10 +16,11 @@
 class QJsonObject;
 
 class LocalSocketController final : public ControllerImpl {
+  Q_OBJECT
   Q_DISABLE_COPY_MOVE(LocalSocketController)
 
  public:
-  LocalSocketController();
+  explicit LocalSocketController(const QString &windowsPipe = QString());
   ~LocalSocketController();
 
   void initialize(const Device* device, const Keys* keys) override;
@@ -35,6 +36,9 @@ class LocalSocketController final : public ControllerImpl {
   void cleanupBackendLogs() override;
 
   bool multihopSupported() override { return true; }
+
+ signals:
+  void backendUnavailable();
 
  private:
   void initializeInternal();
@@ -56,6 +60,8 @@ class LocalSocketController final : public ControllerImpl {
   } m_daemonState = eUnknown;
 
   QLocalSocket* m_socket = nullptr;
+  QString m_windowsPipe;
+  bool m_disconnectReported = false;
 
   QByteArray m_buffer;
 

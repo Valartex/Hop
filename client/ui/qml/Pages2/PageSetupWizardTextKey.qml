@@ -45,7 +45,7 @@ PageType {
                 Layout.leftMargin: 16
 
                 headerText: qsTr("Connection key")
-                descriptionText: qsTr("A line that starts with vpn://...")
+                descriptionText: qsTr("Ссылка подписки https://… или ключ vpn://… / vless://…")
             }
         }
 
@@ -64,7 +64,7 @@ PageType {
                 Layout.leftMargin: 16
 
                 headerText: qsTr("Key")
-                textField.placeholderText: "vpn://"
+                textField.placeholderText: "https://… / vpn://… / vless://…"
                 buttonText: qsTr("Insert")
 
                 clickedFunc: function() {
@@ -87,11 +87,10 @@ PageType {
                 Layout.bottomMargin: 32
 
                 text: qsTr("Continue")
+                enabled: !HttpSubscriptions.busy
 
                 clickedFunc: function() {
-                    if (ImportController.extractConfigFromData(textKey.textField.text)) {
-                        PageController.goToPage(PageEnum.PageSetupWizardViewConfig)
-                    }
+                    ConnectionImport.prepareConnectionImport(textKey.textField.text)
                 }
             }
         }

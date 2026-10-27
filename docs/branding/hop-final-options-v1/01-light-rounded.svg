@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Hop — 1. Светлый</title>
+  <desc id="desc">Буква H с оранжевой траекторией прыжка на непрозрачной подложке.</desc>
+  <defs>
+    <linearGradient id="tile" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8CEBDD"/><stop offset="1" stop-color="#42BFC2"/>
+    </linearGradient>
+  </defs>
+  <rect x="1.7" y="1.7" width="60.6" height="60.6" rx="10.3" fill="#4C6570"/>
+  <rect x="2.3" y="2.3" width="59.4" height="59.4" rx="9.7" fill="#E5EEF0"/>
+  <rect x="2.65" y="2.65" width="58.7" height="58.7" rx="9.35" fill="#E1E9ED"/>
+  <g>
+    <g fill="#073641">
+      <rect x="12" y="10.8" width="13.4" height="42.5" rx="1.35"/>
+      <rect x="38.6" y="10.8" width="13.45" height="42.5" rx="1.35"/>
+      <rect x="24" y="28.85" width="16" height="7.2"/>
+    </g>
+    <path d="M12 35.8C25.5 24.5 43.1 15.9 52.05 21.25L52.05 21.65C43 18.7 27 30 12 42.8Z" fill="#E1E9ED" stroke="#E1E9ED" stroke-width="1.2" stroke-linejoin="round"/>
+    <path d="M12 35.8C25.5 24.5 43.1 15.9 52.05 21.25L52.05 21.65C43 18.7 27 30 12 42.8Z" fill="#EF862F"/>
+  </g>
+</svg>

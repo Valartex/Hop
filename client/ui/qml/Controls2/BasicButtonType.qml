@@ -59,7 +59,7 @@ Button {
         FocusController.nextKeyRightItem()
     }
     
-    implicitHeight: 56
+    implicitHeight: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? 32 : 56
 
     hoverEnabled: true
 
@@ -72,7 +72,7 @@ Button {
 
         anchors.fill: parent
 
-        radius: 16
+        radius: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? 4 : 16
 
         Rectangle {
             id: background
@@ -80,7 +80,7 @@ Button {
             anchors.fill: focusBorder
             anchors.margins: root.activeFocus ? 2 : 0
 
-            radius: root.activeFocus ? 14 : 16
+            radius: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? 3 : (root.activeFocus ? 14 : 16)
             color: {
                 if (root.enabled) {
                     if (root.pressed) {

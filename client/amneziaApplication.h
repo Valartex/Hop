@@ -6,6 +6,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QThread>
+#include <QElapsedTimer>
 #if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
   #include <QGuiApplication>
 #else
@@ -71,6 +72,11 @@ private:
     QThread m_vpnConnectionThread;
 
     QNetworkAccessManager *m_nam;
+    bool m_hopSmokeTest = false;
+    bool m_hopVpnTest = false;
+    int m_hopSmokeWarnings = 0;
+    quint64 m_hopSmokeCpuStart = 0;
+    QElapsedTimer m_hopSmokeIdleClock;
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
 };

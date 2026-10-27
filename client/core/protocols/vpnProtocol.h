@@ -60,6 +60,9 @@ public:
     virtual bool isDisconnected() const;
     virtual ErrorCode start() = 0;
     virtual void stop() = 0;
+    virtual void stopAfterFailure() { stop(); }
+    virtual bool isCleanupComplete() const { return isDisconnected(); }
+    virtual bool updateTrafficProtection(bool) { return false; }
 
     Vpn::ConnectionState connectionState() const;
     ErrorCode lastError() const;
@@ -74,6 +77,7 @@ public:
 
 signals:
     void bytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void trafficRatesChanged(double vpnDown, double vpnUp, double directDown, double directUp);
     void connectionStateChanged(Vpn::ConnectionState state);
     void timeoutTimerEvent();
     void protocolError(amnezia::ErrorCode e);

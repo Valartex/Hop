@@ -14,6 +14,7 @@ QJsonObject InterfaceConfig::toJson() const {
   QJsonObject json;
   QMetaEnum metaEnum = QMetaEnum::fromType<HopType>();
 
+  json.insert("hopPolicyTransport", m_policyTransport);
   json.insert("hopType", QJsonValue(metaEnum.valueToKey(m_hopType)));
   json.insert("privateKey", QJsonValue(m_privateKey));
   json.insert("deviceIpv4Address", QJsonValue(m_deviceIpv4Address));

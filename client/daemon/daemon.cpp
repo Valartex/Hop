@@ -14,6 +14,7 @@
 
 #include "leakdetector.h"
 #include "logger.h"
+#include "version.h"
 
 constexpr const char* JSON_ALLOWEDIPADDRESSRANGES = "allowedIPAddressRanges";
 constexpr int HANDSHAKE_POLL_MSEC = 250;
@@ -147,7 +148,7 @@ bool Daemon::activate(const InterfaceConfig& config) {
   }
 
   // set routing
-  for (const IPAddress& ip : config.m_allowedIPAddressRanges) {
+  for (const IPAddress& ip : config.routePrefixes()) {
     if (!wgutils()->updateRoutePrefix(ip)) {
       logger.debug() << "Routing configuration failed for" << ip.toString();
       return false;
@@ -166,6 +167,7 @@ bool Daemon::activate(const InterfaceConfig& config) {
 }
 
 bool Daemon::maybeUpdateResolvers(const InterfaceConfig& config) {
+  if (config.m_policyTransport) { return true; }
   if ((config.m_hopType == InterfaceConfig::MultiHopExit) ||
       (config.m_hopType == InterfaceConfig::SingleHop)) {
     QList<QHostAddress> resolvers;
@@ -281,6 +283,9 @@ bool Daemon::parseConfig(const QJsonObject& obj, InterfaceConfig& config) {
     logger.error() << "no server addresses found in jsonConfig input";
     return false;
   }
+  #ifdef Q_OS_WIN
+  config.m_policyTransport = QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && obj.value(QStringLiteral("hopPolicyTransport")).toBool();
+  #endif
   config.m_serverIpv4Gateway = obj.value("serverIpv4Gateway").toString();
   config.m_serverIpv6Gateway = obj.value("serverIpv6Gateway").toString();
 
@@ -485,7 +490,7 @@ bool Daemon::deactivate(bool emitSignals) {
     }
   }
 
-  if (emitSignals) {
+  if (emitSignals && QStringLiteral(APPLICATION_NAME) != QStringLiteral("Hop")) {
     emit disconnected();
   }
 
@@ -498,7 +503,7 @@ bool Daemon::deactivate(bool emitSignals) {
   for (const ConnectionState& state : m_connections) {
     const InterfaceConfig& config = state.m_config;
     logger.debug() << "Deleting routes for" << config.m_hopType;
-    for (const IPAddress& ip : config.m_allowedIPAddressRanges) {
+    for (const IPAddress& ip : config.routePrefixes()) {
       wgutils()->deleteRoutePrefix(ip);
     }
     wgutils()->deletePeer(config);
@@ -513,7 +518,9 @@ bool Daemon::deactivate(bool emitSignals) {
 
   m_connections.clear();
   // Delete the interface
-  return wgutils()->deleteInterface();
+  const bool removed = wgutils()->deleteInterface();
+  if (removed && emitSignals && QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { emit disconnected(); }
+  return removed;
 }
 
 QString Daemon::logs() {
@@ -555,7 +562,7 @@ bool Daemon::switchServer(const InterfaceConfig& config) {
     logger.error() << "Server switch failed to update the wireguard interface";
     return false;
   }
-  for (const IPAddress& ip : config.m_allowedIPAddressRanges) {
+  for (const IPAddress& ip : config.routePrefixes()) {
     if (!wgutils()->updateRoutePrefix(ip)) {
       logger.error() << "Server switch failed to update the routing table";
       break;
@@ -566,8 +573,8 @@ bool Daemon::switchServer(const InterfaceConfig& config) {
   for (const QString& i : lastConfig.m_excludedAddresses) {
     delExclusionRoute(QHostAddress(i));
   }
-  for (const IPAddress& ip : lastConfig.m_allowedIPAddressRanges) {
-    if (!config.m_allowedIPAddressRanges.contains(ip)) {
+  for (const IPAddress& ip : lastConfig.routePrefixes()) {
+    if (!config.routePrefixes().contains(ip)) {
       wgutils()->deleteRoutePrefix(ip);
     }
   }

@@ -248,6 +248,20 @@ DWORD GetAdaptersAddressesWrapper(const ULONG Family,
 }
 #endif
 
+QPair<QString, QNetworkInterface> NetworkUtilities::getGatewayAndIfaceTo(const QHostAddress &destination)
+{
+#ifdef Q_OS_WIN
+    if (destination.protocol() != QAbstractSocket::IPv4Protocol) { return {}; }
+    MIB_IPFORWARDROW route {};
+    if (GetBestRoute(htonl(destination.toIPv4Address()), 0, &route) != NO_ERROR) { return {}; }
+    const auto gateway = QHostAddress(ntohl(route.dwForwardNextHop)).toString();
+    return { gateway, QNetworkInterface::interfaceFromIndex(route.dwForwardIfIndex) };
+#else
+    Q_UNUSED(destination);
+    return getGatewayAndIface();
+#endif
+}
+
 QPair<QString, QNetworkInterface> NetworkUtilities::getGatewayAndIface()
 {
 #ifdef Q_OS_WIN

@@ -1,3 +1,4 @@
 module Style
 
 singleton AmneziaStyle 1.0 AmneziaStyle.qml
+singleton HopStyle 1.0 HopStyle.qml

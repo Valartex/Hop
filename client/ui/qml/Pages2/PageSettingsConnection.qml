@@ -12,7 +12,8 @@ import "../Config"
 PageType {
     id: root
 
-    property bool isAppSplitTinnelingEnabled: Qt.platform.os === "windows" || Qt.platform.os === "android"
+    property bool isAppSplitTinnelingEnabled: (Qt.platform.os === "windows" || Qt.platform.os === "android")
+                                            && AppSplitTunnelingController.available
 
     BackButtonType {
         id: backButton
@@ -62,8 +63,8 @@ PageType {
                 Layout.fillWidth: true
                 Layout.margins: 16
 
-                text: qsTr("Use AmneziaDNS")
-                descriptionText: qsTr("If AmneziaDNS is installed on the server")
+                text: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? qsTr("DNS на VPN-сервере") : qsTr("Use AmneziaDNS")
+                descriptionText: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? qsTr("Использовать DNS-сервис подключённого сервера, если он настроен") : qsTr("If AmneziaDNS is installed on the server")
 
                 checked: SettingsController.isAmneziaDnsEnabled()
                 onToggled: function() {

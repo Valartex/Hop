@@ -1,0 +1,107 @@
+[
+  {
+    "size": 16,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 20,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 24,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 30,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 32,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 36,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 40,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 48,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 60,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 64,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 72,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 80,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 96,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 128,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  },
+  {
+    "size": 256,
+    "bpp": 32,
+    "encoding": "PNG",
+    "win32_load": true,
+    "alpha_roundtrip_error": 0
+  }
+]

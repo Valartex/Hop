@@ -9,7 +9,7 @@ Text {
     color: AmneziaStyle.color.textPrimary
     font.pixelSize: 18
     font.weight: 600
-    font.family: "PT Root UI VF"
+    font.family: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? "Segoe UI" : "PT Root UI VF"
     font.letterSpacing: 0
 
     wrapMode: Text.WordWrap

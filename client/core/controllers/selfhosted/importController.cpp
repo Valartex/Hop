@@ -444,7 +444,6 @@ void ImportController::importConfig(const QJsonObject &config)
         }
     } else {
         qDebug() << "Failed to import profile";
-        qDebug().noquote() << QJsonDocument(config).toJson();
         emit importErrorOccurred(ErrorCode::ImportInvalidConfigError, false);
     }
 }
@@ -649,14 +648,13 @@ QJsonObject ImportController::extractWireGuardConfig(const QString &data, Config
     config[configKey::defaultContainer] = containerName;
     config[configKey::description] = m_serversRepository->nextAvailableServerName();
 
-    const static QRegularExpression dnsRegExp(
-            "DNS = "
-            "(\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b).*(\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b)");
-    QRegularExpressionMatch dnsMatch = dnsRegExp.match(data);
-    if (dnsMatch.hasMatch()) {
-        config[configKey::dns1] = dnsMatch.captured(1);
-        config[configKey::dns2] = dnsMatch.captured(2);
+    QStringList resolvers;
+    for (const auto &value : configMap.value(QStringLiteral("DNS")).split(QLatin1Char(','), Qt::SkipEmptyParts)) {
+        const QHostAddress address(value.trimmed());
+        if (address.protocol() == QAbstractSocket::IPv4Protocol && !resolvers.contains(address.toString())) { resolvers.append(address.toString()); }
     }
+    if (!resolvers.isEmpty()) { config[configKey::dns1] = resolvers.at(0); }
+    if (resolvers.size() > 1) { config[configKey::dns2] = resolvers.at(1); }
 
     config[configKey::hostName] = hostName;
 
@@ -667,7 +665,7 @@ QJsonObject ImportController::extractWireGuardConfig(const QString &data, Config
 QJsonObject ImportController::extractXrayConfig(const QString &data, ConfigTypes configType, const QString &description) const
 {
     QJsonParseError parserErr;
-    QJsonDocument jsonConf = QJsonDocument::fromJson(data.toLocal8Bit(), &parserErr);
+    QJsonDocument jsonConf = QJsonDocument::fromJson(data.toUtf8(), &parserErr);
     if (parserErr.error != QJsonParseError::NoError || !jsonConf.isObject()) {
         qDebug() << "Xray config JSON parse failed:" << parserErr.errorString();
         return QJsonObject();

@@ -1,0 +1,4 @@
+aqtinstall==3.3.0
+cmake==3.31.10
+conan==2.33.0
+ninja==1.13.2

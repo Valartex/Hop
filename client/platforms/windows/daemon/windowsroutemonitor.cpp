@@ -8,6 +8,8 @@
 
 #include "leakdetector.h"
 #include "logger.h"
+#include "version.h"
+#include "windowsRouteJournal.h"
 
 namespace {
 Logger logger("WindowsRouteMonitor");
@@ -25,6 +27,7 @@ static void routeChangeCallback(PVOID context, PMIB_IPFORWARD_ROW2 row,
                                 MIB_NOTIFICATION_TYPE type) {
   WindowsRouteMonitor* monitor = (WindowsRouteMonitor*)context;
   Q_UNUSED(type);
+  if (!row) { return; }
 
   // Ignore route changes that we created.
   if ((row->Protocol == MIB_IPPROTO_NETMGMT) &&
@@ -76,6 +79,10 @@ WindowsRouteMonitor::~WindowsRouteMonitor() {
 }
 
 void WindowsRouteMonitor::updateInterfaceMetrics(int family) {
+  NET_LUID routingFrontend {};
+  if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+    ConvertInterfaceAliasToLuid(reinterpret_cast<PCWSTR>(QStringLiteral(APP_WINDOWS_XRAY_INTERFACE).utf16()), &routingFrontend);
+  }
   PMIB_IPINTERFACE_TABLE table;
   DWORD result = GetIpInterfaceTable(family, &table);
   if (result != NO_ERROR) {
@@ -95,7 +102,7 @@ void WindowsRouteMonitor::updateInterfaceMetrics(int family) {
   // Rebuild the list of interfaces that are valid for routing.
   for (ULONG i = 0; i < table->NumEntries; i++) {
     MIB_IPINTERFACE_ROW* row = &table->Table[i];
-    if (row->InterfaceLuid.Value == m_luid) {
+    if (row->InterfaceLuid.Value == m_luid || (routingFrontend.Value && row->InterfaceLuid.Value == routingFrontend.Value)) {
       continue;
     }
     if (!row->Connected) {
@@ -189,7 +196,7 @@ void WindowsRouteMonitor::updateExclusionRoute(MIB_IPFORWARD_ROW2* data,
 
   // Delete the previous routing table entry, if any.
   if (data->InterfaceLuid.Value != 0) {
-    DWORD result = DeleteIpForwardEntry2(data);
+    DWORD result = WindowsRouteJournal::instance().deleteRoute(data);
     if ((result != NO_ERROR) && (result != ERROR_NOT_FOUND)) {
       logger.error() << "Failed to delete route:" << result;
     }
@@ -199,7 +206,7 @@ void WindowsRouteMonitor::updateExclusionRoute(MIB_IPFORWARD_ROW2* data,
   data->InterfaceLuid.Value = bestLuid;
   memcpy(&data->NextHop, &nexthop, sizeof(SOCKADDR_INET));
   if (data->InterfaceLuid.Value != 0) {
-    DWORD result = CreateIpForwardEntry2(data);
+    DWORD result = WindowsRouteJournal::instance().createRoute(data);
     if (result != NO_ERROR) {
       logger.error() << "Failed to update route:" << result;
     }
@@ -256,9 +263,9 @@ void WindowsRouteMonitor::updateCapturedRoutes(int family) {
     return;
   }
 
-  PMIB_IPFORWARD_TABLE2 table;
+  PMIB_IPFORWARD_TABLE2 table = nullptr;
   DWORD error = GetIpForwardTable2(family, &table);
-  if (error != NO_ERROR) {
+  if (error == NO_ERROR) {
     updateCapturedRoutes(family, table);
     FreeMibTable(table);
   }
@@ -324,7 +331,7 @@ void WindowsRouteMonitor::updateCapturedRoutes(int family, void* ptable) {
     data->Age = 0;
 
     // Route this traffic into the VPN tunnel.
-    DWORD result = CreateIpForwardEntry2(data);
+    DWORD result = WindowsRouteJournal::instance().createRoute(data);
     if (result != NO_ERROR) {
       logger.error() << "Failed to update route:" << result;
       delete data;
@@ -356,7 +363,7 @@ void WindowsRouteMonitor::updateCapturedRoutes(int family, void* ptable) {
     logger.debug() << "Removing route capture for" << i.key().toString();
 
     // Otherwise, this route is no longer in use.
-    DWORD result = DeleteIpForwardEntry2(data);
+    DWORD result = WindowsRouteJournal::instance().deleteRoute(data);
     if ((result != NO_ERROR) && (result != ERROR_NOT_FOUND)) {
       logger.error() << "Failed to delete route:" << result;
     }
@@ -370,10 +377,12 @@ bool WindowsRouteMonitor::addExclusionRoute(const IPAddress& prefix) {
 
   // Silently ignore non-routeable addresses.
   QHostAddress addr = prefix.address();
-  if (addr.isLoopback() || addr.isBroadcast() || addr.isLinkLocal() ||
+  if (addr.isNull() || addr.isLoopback() || addr.isBroadcast() || addr.isLinkLocal() ||
       addr.isMulticast()) {
     return true;
   }
+  const int maximumPrefix = addr.protocol() == QAbstractSocket::IPv6Protocol ? 128 : 32;
+  if (prefix.prefixLength() < 0 || prefix.prefixLength() > maximumPrefix) { return false; }
 
   if (m_exclusionRoutes.contains(prefix)) {
     logger.warning() << "Exclusion route already exists";
@@ -441,7 +450,7 @@ bool WindowsRouteMonitor::deleteExclusionRoute(const IPAddress& prefix) {
     return true;
   }
 
-  DWORD result = DeleteIpForwardEntry2(data);
+  DWORD result = WindowsRouteJournal::instance().deleteRoute(data);
   if ((result != ERROR_NOT_FOUND) && (result != NO_ERROR)) {
     logger.error() << "Failed to delete route to"
                    << prefix.toString()
@@ -459,7 +468,7 @@ void WindowsRouteMonitor::flushRouteTable(
     QHash<IPAddress, MIB_IPFORWARD_ROW2*>& table) {
   for (auto i = table.begin(); i != table.end(); i++) {
     MIB_IPFORWARD_ROW2* data = i.value();
-    DWORD result = DeleteIpForwardEntry2(data);
+    DWORD result = WindowsRouteJournal::instance().deleteRoute(data);
     if ((result != ERROR_NOT_FOUND) && (result != NO_ERROR)) {
       logger.error() << "Failed to delete route to"
                      << i.key().toString()

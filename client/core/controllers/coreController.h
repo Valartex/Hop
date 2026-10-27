@@ -48,6 +48,10 @@
 #include "core/repositories/secureServersRepository.h"
 #include "core/repositories/secureAppSettingsRepository.h"
 #include "secureQSettings.h"
+#include "core/subscriptions/httpSubscriptionsController.h"
+#include "core/routing/routeDatasetsController.h"
+#include "core/routing/trafficPolicyController.h"
+#include "core/locations/endpointHealthController.h"
 
 #include "ui/models/allowedDnsModel.h"
 #include "ui/models/containersModel.h"
@@ -86,6 +90,7 @@
 #endif
 
 class CoreSignalHandlers;
+namespace hop { class LocationCatalog; class LocationCoordinator; }
 
 class CoreController : public QObject
 {
@@ -103,6 +108,7 @@ public:
 
     void openConnectionByIndex(int serverIndex);
     void importConfigFromData(const QString &data);
+    Q_INVOKABLE bool prepareConnectionImport(const QString &data, const QString &sourceName = QString());
     void updateTranslator(const QLocale &locale);
 
 signals:
@@ -154,6 +160,8 @@ private:
     SecureQSettings* m_settings;
     QSharedPointer<VpnConnection> m_vpnConnection;
     QTranslator* m_translator;
+    QTranslator* m_hopTranslator;
+    QTranslator* m_qtTranslator;
 
     SecureServersRepository* m_serversRepository;
     SecureAppSettingsRepository* m_appSettingsRepository;
@@ -170,6 +178,14 @@ private:
     InstallUiController* m_installUiController;
     ImportUiController* m_importController;
     ImportController* m_importCoreController;
+    hop::HttpSubscriptionsController* m_httpSubscriptionsController;
+    hop::RouteDatasetsController* m_routeDatasetsController;
+    hop::TrafficPolicyController* m_trafficPolicyController = nullptr;
+    bool m_policyRestartPending = false;
+    hop::EndpointHealthController* m_endpointHealthController;
+    bool m_endpointTransportActive = false;
+    hop::LocationCatalog* m_locationCatalog = nullptr;
+    hop::LocationCoordinator* m_locationCoordinator = nullptr;
     ExportUiController* m_exportUiController;
     SettingsUiController* m_settingsUiController;
     LogsUiController* m_logsUiController;

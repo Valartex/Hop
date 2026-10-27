@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25.0 FATAL_ERROR)
 
-set(PROJECT AmneziaVPN-service)
+set(PROJECT ${CLIENT_SERVICE_NAME})
 project(${PROJECT} VERSION ${AMNEZIAVPN_VERSION})
 
 if (APPLE)
@@ -50,6 +50,15 @@ set(SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/systemservice.cpp
     ${CMAKE_CURRENT_LIST_DIR}/xray.cpp
 )
+
+if(WIN32)
+    list(APPEND SOURCES ${CMAKE_CURRENT_LIST_DIR}/windowsTrafficGuard.cpp ${CMAKE_CURRENT_LIST_DIR}/windowsRouteJournal.cpp)
+    list(APPEND HEADERS ${CMAKE_CURRENT_LIST_DIR}/windowsTrafficGuard.h ${CMAKE_CURRENT_LIST_DIR}/windowsRouteJournal.h)
+    add_executable(hop_guard_recover ../../hop/tools/guardRecover.cpp windowsTrafficGuard.cpp windowsRouteJournal.cpp)
+    target_include_directories(hop_guard_recover PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${CMAKE_CURRENT_BINARY_DIR})
+    target_link_libraries(hop_guard_recover PRIVATE Qt6::Core Qt6::Network fwpuclnt iphlpapi ws2_32 rpcrt4)
+    install(TARGETS hop_guard_recover DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT AmneziaVPN)
+endif()
 
 # Mozilla headres
 set(HEADERS ${HEADERS}
@@ -122,6 +131,8 @@ endif()
 set(RESOURCES)
 
 if(WIN32)
+    set(SERVICE_DISPLAY_PRODUCT "${CLIENT_APPLICATION_NAME}")
+    set(SERVICE_DISPLAY_FILENAME "${CLIENT_SERVICE_NAME}.exe")
     configure_file(
         ${CMAKE_CURRENT_LIST_DIR}/amneziavpn-service.rc.in
         ${CMAKE_CURRENT_BINARY_DIR}/amneziavpn-service.rc
@@ -288,11 +299,18 @@ include_directories(
 
 
 add_executable(${PROJECT} ${SOURCES} ${HEADERS} ${RESOURCES})
+target_compile_definitions(${PROJECT} PRIVATE CLIENT_KEYCHAIN_NAME_STR=\"${CLIENT_KEYCHAIN_NAME}\")
 target_link_libraries(${PROJECT} PRIVATE Qt6::Core Qt6::Widgets Qt6::Network Qt6::RemoteObjects Qt6::Core5Compat Qt6::DBus Qt6::Concurrent ${LIBS})
 target_compile_definitions(${PROJECT} PRIVATE "MZ_$<UPPER_CASE:${MZ_PLATFORM_NAME}>")
 
 find_package(amnezia-xray-bindings REQUIRED)
-target_link_libraries(${PROJECT} PRIVATE amnezia::xray-bindings)
+if(WIN32 AND CLIENT_APPLICATION_NAME STREQUAL "Hop")
+    # GNU import library обходит MSVC delay-load; используем явное разрешение функций.
+    target_compile_definitions(${PROJECT} PRIVATE HOP_DYNAMIC_XRAY)
+    target_include_directories(${PROJECT} PRIVATE $<TARGET_PROPERTY:amnezia::xray-bindings,INTERFACE_INCLUDE_DIRECTORIES>)
+else()
+    target_link_libraries(${PROJECT} PRIVATE amnezia::xray-bindings)
+endif()
 
 find_package(OpenSSL REQUIRED)
 target_link_libraries(${PROJECT} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
@@ -382,7 +400,7 @@ if(LINUX)
 elseif(APPLE)
     file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/set_openvpn_rpath.cmake CONTENT
 [=[
-set(ovpn "$<TARGET_FILE_DIR:AmneziaVPN-service>/openvpn")
+set(ovpn "$<TARGET_FILE_DIR:${PROJECT}>/openvpn")
 set(dir "$<TARGET_FILE_DIR:OpenSSL::SSL>")
 execute_process(COMMAND install_name_tool -delete_rpath "${dir}" "${ovpn}" ERROR_QUIET)
 execute_process(COMMAND install_name_tool -add_rpath "${dir}" "${ovpn}")
@@ -463,16 +481,18 @@ if (WIN32)
         COMPONENT AmneziaVPN
     )
 
-    find_package(win-split-tunnel REQUIRED)
-    add_custom_command(TARGET ${PROJECT} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${WIN_SPLIT_TUNNEL_BIN}"
-            "$<TARGET_FILE_DIR:${PROJECT}>"
-    )
-    install(DIRECTORY "${WIN_SPLIT_TUNNEL_BIN}/"
-        DESTINATION ${CMAKE_INSTALL_BINDIR}
-        COMPONENT AmneziaVPN
-    )
+    if(NOT DEFINED CLIENT_WINDOWS_APP_SPLIT_TUNNEL OR CLIENT_WINDOWS_APP_SPLIT_TUNNEL)
+        find_package(win-split-tunnel REQUIRED)
+        add_custom_command(TARGET ${PROJECT} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${WIN_SPLIT_TUNNEL_BIN}"
+                "$<TARGET_FILE_DIR:${PROJECT}>"
+        )
+        install(DIRECTORY "${WIN_SPLIT_TUNNEL_BIN}/"
+            DESTINATION ${CMAKE_INSTALL_BINDIR}
+            COMPONENT AmneziaVPN
+        )
+    endif()
 endif()
 
 # install target

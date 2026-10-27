@@ -1,0 +1,52 @@
+cmake_minimum_required(VERSION 3.25)
+project(HopPolicyTests LANGUAGES CXX)
+
+add_library(hop_policy INTERFACE)
+target_include_directories(hop_policy INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/core)
+target_compile_features(hop_policy INTERFACE cxx_std_17)
+
+add_executable(hop_policy_tests tests/locationSelectionPolicyTests.cpp)
+target_link_libraries(hop_policy_tests PRIVATE hop_policy)
+if(MSVC)
+    target_compile_options(hop_policy_tests PRIVATE /W4 /WX)
+else()
+    target_compile_options(hop_policy_tests PRIVATE -Wall -Wextra -Werror -pedantic)
+endif()
+
+enable_testing()
+add_test(NAME HopLocationSelection COMMAND hop_policy_tests)
+
+option(HOP_BUILD_QT_TESTS "Build native subscription tests" OFF)
+if(HOP_BUILD_QT_TESTS)
+    set(CMAKE_AUTOMOC ON)
+    find_package(Qt6 6.10 REQUIRED COMPONENTS Core Network Test Concurrent)
+    add_library(hop_subscriptions STATIC
+        ../client/core/subscriptions/subscriptionParser.cpp
+        ../client/core/subscriptions/subscriptionFetcher.cpp
+        ../client/core/subscriptions/subscriptionFetcher.h
+    )
+    target_include_directories(hop_subscriptions PUBLIC ../client)
+    target_link_libraries(hop_subscriptions PUBLIC Qt6::Core Qt6::Network)
+    target_compile_features(hop_subscriptions PUBLIC cxx_std_17)
+    if(MSVC)
+        target_compile_options(hop_subscriptions PRIVATE /utf-8 /W4)
+    endif()
+    add_executable(hop_subscription_tests tests/subscriptionParserTests.cpp)
+    target_link_libraries(hop_subscription_tests PRIVATE hop_subscriptions Qt6::Test)
+    add_test(NAME HopSubscriptions COMMAND hop_subscription_tests)
+    add_executable(hop_subscription_probe tools/subscriptionProbe.cpp)
+    target_link_libraries(hop_subscription_probe PRIVATE hop_subscriptions)
+    add_library(hop_geodata STATIC ../client/core/routing/geoData.cpp
+        ../client/core/routing/routeDatasetsController.cpp ../client/core/routing/routeDatasetsController.h)
+    target_include_directories(hop_geodata PUBLIC ../client)
+    target_link_libraries(hop_geodata PUBLIC Qt6::Core Qt6::Network Qt6::Concurrent)
+    target_compile_features(hop_geodata PUBLIC cxx_std_17)
+    if(MSVC)
+        target_compile_options(hop_geodata PRIVATE /utf-8 /W4)
+    endif()
+    add_executable(hop_geodata_tests tests/geoDataTests.cpp)
+    target_link_libraries(hop_geodata_tests PRIVATE hop_geodata Qt6::Test)
+    add_test(NAME HopGeoData COMMAND hop_geodata_tests)
+    add_executable(hop_geodata_inspect tools/geoDataInspect.cpp)
+    target_link_libraries(hop_geodata_inspect PRIVATE hop_geodata)
+endif()

@@ -194,6 +194,7 @@ PageType {
 
             SwitcherType {
                 id: switcherAutoUpdateCheck
+                visible: Qt.application.name !== "Hop"
 
                 Layout.fillWidth: true
                 Layout.margins: 16
@@ -261,7 +262,7 @@ PageType {
 
                 clickedFunction: function() {
                     var headerText = qsTr("Reset settings and remove all data from the application?")
-                    var descriptionText = qsTr("All settings will be reset to default. All installed AmneziaVPN services will still remain on the server.")
+                    var descriptionText = qsTr("All settings will be reset to default. Services installed on your servers will remain unchanged.")
                     var yesButtonText = qsTr("Continue")
                     var noButtonText = qsTr("Cancel")
 

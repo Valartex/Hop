@@ -1,0 +1,77 @@
+name: Hop Windows build and native tests
+
+# Запускается вручную; не устанавливает VPN, не подписывает и не публикует релиз.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hop-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      CONAN_NON_INTERACTIVE: '1'
+      QT_FORCE_STDERR_LOGGING: '1'
+      ZIG_SHA256: b5663f69581dcf391293fbf16c06cb80d81d806545ce618b4d0bab7f0eb8c428
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.27.2'
+          cache: false
+      - uses: jurplel/install-qt-action@v4.3.1
+        with:
+          version: '6.10.1'
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtremoteobjects qt5compat qtshadertools
+          cache: true
+      - name: Prepare pinned build tools
+        shell: pwsh
+        run: |
+          python -m venv .tools/build-python
+          & .tools/build-python/Scripts/python.exe -m pip install conan==2.33.0 cmake==3.31.10 ninja==1.13.2
+          if ($LASTEXITCODE -ne 0) { throw 'Python tool installation failed' }
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs -or -not $env:QT_ROOT_DIR) { throw 'MSVC or Qt installation is unavailable' }
+          "HOP_VCVARS=$vs/VC/Auxiliary/Build/vcvarsall.bat" >> $env:GITHUB_ENV
+          "HOP_QT_ROOT=$env:QT_ROOT_DIR" >> $env:GITHUB_ENV
+          "HOP_GO_EXE=$((Get-Command go).Source)" >> $env:GITHUB_ENV
+          Invoke-WebRequest https://ziglang.org/download/0.17.0/zig-x86_64-windows-0.17.0.zip -OutFile .tools/zig.zip
+          if ((Get-FileHash .tools/zig.zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne $env:ZIG_SHA256) { throw 'Zig archive hash mismatch' }
+          Expand-Archive .tools/zig.zip -DestinationPath .tools
+      - name: Build Windows and Hop Xray bindings
+        shell: pwsh
+        run: |
+          & hop/scripts/build-windows.ps1 -Tests -Targets Hop,Hop-service,hop_endpoint_probe,hop_tunnel_probe,hop_guard_recover,test_http_subscriptions,test_location_catalog,test_selection_session,test_hop_dashboard,test_endpoint_health,test_route_datasets,test_traffic_policy,test_xray_lifecycle
+      - name: Native tests without system VPN
+        shell: pwsh
+        run: |
+          . hop/scripts/enter-build-env.ps1
+          ctest --test-dir build/windows/client/tests -R Hop --output-on-failure
+          if ($LASTEXITCODE -ne 0) { throw 'Hop native tests failed' }
+      - name: Stage development package
+        shell: pwsh
+        run: |
+          & hop/scripts/stage-windows.ps1 -Destination build/windows-stage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hop-windows-development
+          path: |
+            build/windows-stage/
+            build/windows/client/tests/Testing/Temporary/LastTest.log
+          retention-days: 7

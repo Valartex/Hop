@@ -119,7 +119,7 @@ void DaemonLocalServerConnection::parseCommand(const QByteArray& data) {
   }
 
   if (type == "deactivate") {
-    Daemon::instance()->deactivate(true);
+    if (!Daemon::instance()->deactivate(true)) { backendFailure(DaemonError::ERROR_FATAL); }
     return;
   }
 

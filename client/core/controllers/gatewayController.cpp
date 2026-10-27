@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QEventLoop>
 #include <QFutureWatcher>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QMetaObject>
@@ -12,6 +13,10 @@
 #include "core/repositories/secureAppSettingsRepository.h"
 #include "core/utils/constants/apiKeys.h"
 #include "core/utils/api/apiUtils.h"
+#include "version.h"
+#ifdef Q_OS_WIN
+#include "core/locations/controlPlaneResolver.h"
+#endif
 
 #ifdef AMNEZIA_DESKTOP
     #include "core/utils/ipcClient.h"
@@ -74,8 +79,10 @@ GatewayController::GatewayController(const QString &gatewayEndpoint, const bool 
       m_isStrictKillSwitchEnabled(isStrictKillSwitchEnabled),
       m_appSettingsRepository(appSettingsRepository)
 {
-    const QByteArray publicKey = isDevEnvironment ? QByteArray(DEV_AGW_PUBLIC_KEY) : QByteArray(PROD_AGW_PUBLIC_KEY);
-    m_publicKeyMissing = publicKey.isEmpty();
+    const QUrl controlUrl(gatewayEndpoint);
+    m_gatewayControlHost = controlUrl.host();
+    m_gatewayControlPort = controlUrl.port(controlUrl.scheme() == QStringLiteral("https") ? 443 : 80);
+    QByteArray publicKey = isDevEnvironment ? QByteArray(DEV_AGW_PUBLIC_KEY) : QByteArray(PROD_AGW_PUBLIC_KEY);
 
     QStringList primaryEndpoints;
     QStringList fallbackEndpoints;
@@ -85,6 +92,27 @@ GatewayController::GatewayController(const QString &gatewayEndpoint, const bool 
         primaryEndpoints = splitEndpoints(PROD_S3_ENDPOINT);
         fallbackEndpoints = splitEndpoints(FALLBACK_S3_ENDPOINT);
     }
+    if (!isDevEnvironment && publicKey.isEmpty() && QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        // В ресурсах находятся только публичные параметры официального Windows-релиза; ключей пользователей здесь нет.
+        QFile provider(QStringLiteral(":/hop/providers/amnezia.json"));
+        if (provider.open(QIODevice::ReadOnly) && provider.size() <= 16384) {
+            const auto defaults = QJsonDocument::fromJson(provider.readAll()).object();
+            publicKey = defaults.value(QStringLiteral("public_key_pem")).toString().toUtf8();
+            const auto endpoints = [](const QJsonValue &value) {
+                QStringList result;
+                for (const auto &entry : value.toArray()) {
+                    const QUrl url(entry.toString(), QUrl::StrictMode);
+                    if (!url.isValid() || url.scheme() != QStringLiteral("https") || url.host().isEmpty()
+                        || !url.userInfo().isEmpty() || url.hasFragment()) { return QStringList(); }
+                    result.append(url.toString(QUrl::FullyEncoded));
+                }
+                return result;
+            };
+            if (primaryEndpoints.isEmpty()) { primaryEndpoints = endpoints(defaults.value(QStringLiteral("s3_primary_endpoints"))); }
+            if (fallbackEndpoints.isEmpty()) { fallbackEndpoints = endpoints(defaults.value(QStringLiteral("s3_fallback_endpoints"))); }
+        }
+    }
+    m_publicKeyMissing = publicKey.isEmpty();
 
     QJsonObject config;
     config[agwConfigKey::gatewayEndpoint] = gatewayEndpoint;
@@ -205,6 +233,16 @@ void GatewayController::onBeforeRequest(const char *host, void *userData)
 
 void GatewayController::handleBeforeRequest(const QString &host)
 {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        auto name = host;
+        int port = name == m_gatewayControlHost ? m_gatewayControlPort : 443;
+        const QUrl parsed(QStringLiteral("http://") + host);
+        if (!parsed.host().isEmpty() && parsed.port() > 0) { name = parsed.host(); port = parsed.port(); }
+        for (const auto &address : hop::controlPlane::resolve(name)) { hop::controlPlane::permit(address, port); }
+        return;
+    }
+#endif
 #ifdef Q_OS_IOS
     Q_UNUSED(host);
     IosController::Instance()->requestInetAccess();

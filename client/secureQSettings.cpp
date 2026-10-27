@@ -23,9 +23,10 @@ namespace {
     constexpr const char *keyChainName = CLIENT_KEYCHAIN_NAME_STR;
 }
 
-SecureQSettings::SecureQSettings(const QString &organization, const QString &application, QObject *parent, bool enableEncryption)
-    : QObject { parent }, m_settings(organization, application, parent), encryptedKeys({ "Servers/serversList", "Conf/favoriteLocations", "Conf/proxyUrls/agw_state" }), m_encryptionEnabled(enableEncryption)
+SecureQSettings::SecureQSettings(const QString &organization, const QString &application, QObject *parent, bool enableEncryption, bool enablePersistence)
+    : QObject { parent }, m_settings(organization, application, parent), encryptedKeys({ "Servers/serversList", "Conf/favoriteLocations", "Conf/proxyUrls/agw_state" }), m_encryptionEnabled(enableEncryption), m_persistenceEnabled(enablePersistence)
 {
+    if (!m_persistenceEnabled) { return; }
     bool encrypted = m_settings.value("Conf/encrypted").toBool();
 
     // convert settings to encrypted for if updated to >= 2.1.0
@@ -47,6 +48,7 @@ QVariant SecureQSettings::value(const QString &key, const QVariant &defaultValue
     if (m_cache.contains(key)) {
         return m_cache.value(key);
     }
+    if (!m_persistenceEnabled) { return defaultValue; }
 
     if (!m_settings.contains(key))
         return defaultValue;
@@ -87,6 +89,7 @@ QVariant SecureQSettings::value(const QString &key, const QVariant &defaultValue
 void SecureQSettings::setValue(const QString &key, const QVariant &value)
 {
     QMutexLocker locker(&m_mutex);
+    if (!m_persistenceEnabled) { m_cache.insert(key, value); return; }
 
     if (encryptionRequired() && encryptedKeys.contains(key)) {
         if (!getEncKey().isEmpty() && !getEncIv().isEmpty()) {
@@ -110,17 +113,50 @@ void SecureQSettings::setValue(const QString &key, const QVariant &value)
     m_cache.insert(key, value);
 }
 
+bool SecureQSettings::setValueChecked(const QString &key, const QVariant &value)
+{
+    QMutexLocker locker(&m_mutex);
+    if (!m_persistenceEnabled) { m_cache.insert(key, value); return true; }
+    QVariant stored = value;
+    if (encryptionRequired() && encryptedKeys.contains(key)) {
+        if (getEncKey().isEmpty() || getEncIv().isEmpty()) { return false; }
+        QByteArray plain;
+        QDataStream stream(&plain, QIODevice::WriteOnly);
+        stream << value;
+        const auto encrypted = encryptText(plain);
+        if (encrypted.isEmpty()) { return false; }
+        stored = magicString + encrypted;
+    }
+    // Отдельный экземпляр не наследует прежний QSettings::status; кэш публикуется только после sync.
+    QSettings writer(m_settings.fileName(), m_settings.format());
+    writer.setAtomicSyncRequired(true);
+    const bool existed = writer.contains(key);
+    const auto previous = writer.value(key);
+    writer.setValue(key, stored);
+    writer.sync();
+    if (writer.status() != QSettings::NoError) {
+        // Не оставляем неподтверждённую запись для повторной синхронизации в деструкторе.
+        if (existed) { writer.setValue(key, previous); } else { writer.remove(key); }
+        writer.sync();
+        return false;
+    }
+    m_settings.sync();
+    m_cache.insert(key, value);
+    return true;
+}
+
 void SecureQSettings::remove(const QString &key)
 {
     QMutexLocker locker(&m_mutex);
 
-    m_settings.remove(key);
+    if (m_persistenceEnabled) { m_settings.remove(key); }
     m_cache.remove(key);
 }
 
 QByteArray SecureQSettings::backupAppConfig() const
 {
     QMutexLocker locker(&m_mutex);
+    if (!m_persistenceEnabled) { return {}; }
 
     QJsonObject cfg;
 
@@ -181,7 +217,7 @@ bool SecureQSettings::isExcludedFromBackup(const QString &key) const
 void SecureQSettings::clearSettings()
 {
     QMutexLocker locker(&m_mutex);
-    m_settings.clear();
+    if (m_persistenceEnabled) { m_settings.clear(); }
     m_cache.clear();
 }
 

@@ -49,6 +49,7 @@ public:
 signals:
 
 private:
+    friend class TestXrayProtocolLifecycle;
     QRemoteObjectNode m_node;
     QSharedPointer<IpcInterfaceReplica> m_interface;
 };

@@ -38,6 +38,9 @@ SettingsController::SettingsController(SecureServersRepository* serversRepositor
       m_appSettingsRepository(appSettingsRepository)
 {
     m_appVersion = QString("%1 (%2, %3)").arg(QString(APP_VERSION), __DATE__, GIT_COMMIT_HASH);
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { m_appVersion = QStringLiteral(APP_VERSION); }
+#endif
     m_isDevModeEnabled = m_appSettingsRepository->isDevGatewayEnv();
 }
 

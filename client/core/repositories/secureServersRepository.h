@@ -3,6 +3,7 @@
 
 #include <QHash>
 #include <QJsonObject>
+#include <QPair>
 #include <QObject>
 #include <QVector>
 #include <QtGlobal>
@@ -29,6 +30,10 @@ public:
     QString addServer(const QString &serverId, const QJsonObject &serverJson, serverConfigUtils::ConfigType kind);
     void editServer(const QString &serverId, const QJsonObject &serverJson, serverConfigUtils::ConfigType kind);
     void removeServer(const QString &serverId);
+    bool removeServersChecked(const QStringList &serverIds);
+    bool applyNativeSubscriptionSnapshot(const QString &sourceId,
+                                        const QVector<QPair<QString, QJsonObject>> &snapshot,
+                                        const QString &protectedServerId = QString());
     serverConfigUtils::ConfigType serverKind(const QString &serverId) const;
 
     std::optional<SelfHostedAdminServerConfig> selfHostedAdminConfig(const QString &serverId) const;
@@ -55,6 +60,7 @@ public:
     int unsupportedFormatConfigsCount() const;
 
 signals:
+    void serversBatchChanged();
     void serverAdded(const QString &serverId);
     void serverEdited(const QString &serverId);
     void serverRemoved(const QString &serverId, int removedIndex);
@@ -68,6 +74,7 @@ private:
     QString normalizedOrGeneratedServerId(const QString &candidateId) const;
 
     void syncToStorage();
+    bool commitServerSnapshot(QHash<QString, QJsonObject> configs, QVector<QString> order);
     QVariant value(const QString &key, const QVariant &defaultValue) const;
     void setValue(const QString &key, const QVariant &value);
 

@@ -5,6 +5,16 @@
 #include "core/utils/errorCodes.h"
 #include "core/utils/routeModes.h"
 #include "core/utils/commonStructs.h"
+#include "version.h"
+
+bool AppSplitTunnelingUiController::isAvailable() const
+{
+#ifdef Q_OS_WIN
+    return APP_WINDOWS_APP_SPLIT_TUNNEL != 0;
+#else
+    return true;
+#endif
+}
 
 AppSplitTunnelingUiController::AppSplitTunnelingUiController(AppSplitTunnelingController* appSplitTunnelingController,
                                                               AppSplitTunnelingModel* appSplitTunnelingModel,

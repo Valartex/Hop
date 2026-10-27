@@ -14,6 +14,8 @@
 #include "logger.h"
 #include "platforms/windows/daemon/wireguardutilswindows.h"
 #include "platforms/windows/windowsutils.h"
+#include "windowsTunnelSecrets.h"
+#include "version.h"
 
 namespace {
 Logger logger("WindowsDaemonTunnel");
@@ -32,16 +34,15 @@ int WindowsDaemonTunnel::run(QStringList& tokens) {
 
   logger.debug() << "Tunnel daemon service is starting";
 
-  QCoreApplication app();
-
-  QCoreApplication::setApplicationName("Amnezia VPN Tunnel");
+  QCoreApplication::setApplicationName(QStringLiteral(APPLICATION_NAME " Tunnel"));
   QCoreApplication::setApplicationVersion(Constants::versionString());
 
-  if (tokens.length() != 2) {
+  const bool sealed = tokens.length() == 3 && tokens.at(1) == QStringLiteral("--sealed-config");
+  if (!sealed && (tokens.length() != 2 || QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop"))) {
     logger.error() << "Expected 1 parameter only: the config file.";
     return 1;
   }
-  QString maybeConfig = tokens.at(1);
+  QString maybeConfig = sealed ? WindowsTunnelSecrets::unseal(tokens.at(2)) : tokens.at(1);
 
   if (!maybeConfig.startsWith("[Interface]")) {
     logger.error() << "parameter Does not seem to be a config";
@@ -49,7 +50,8 @@ int WindowsDaemonTunnel::run(QStringList& tokens) {
   }
   // This process will be used by the wireguard tunnel. No need to call
   // FreeLibrary.
-  HMODULE tunnelLib = LoadLibrary(TEXT("tunnel.dll"));
+  const auto libraryPath = QDir::toNativeSeparators(QCoreApplication::applicationDirPath() + QStringLiteral("/tunnel.dll"));
+  HMODULE tunnelLib = LoadLibraryW(reinterpret_cast<LPCWSTR>(libraryPath.utf16()));
   if (!tunnelLib) {
     WindowsUtils::windowsLog("Failed to load tunnel.dll");
     return 1;

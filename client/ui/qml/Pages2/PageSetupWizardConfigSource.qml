@@ -106,11 +106,11 @@ PageType {
                             clickedFunction: function() {
                                 var fileName = ""
                                 if (GC.isMobile()) {
-                                    fileName = "AmneziaVPN.log"
+                                    fileName = Qt.application.name + ".log"
                                 } else {
                                     fileName = SystemController.getFileName(qsTr("Save"),
                                                                             qsTr("Logs files (*.log)"),
-                                                                            StandardPaths.standardLocations(StandardPaths.DocumentsLocation) + "/AmneziaVPN",
+                                                                            StandardPaths.standardLocations(StandardPaths.DocumentsLocation) + "/" + Qt.application.name,
                                                                             true,
                                                                             ".log")
                                 }
@@ -170,6 +170,10 @@ PageType {
 
                 headerText: qsTr("Insert key")
                 buttonText: qsTr("Insert")
+                textField.objectName: "hopInitialConnectionInput"
+                textField.placeholderText: "https://… / vpn://… / vless://…"
+                textField.echoMode: TextInput.Password
+                textField.enabled: !HttpSubscriptions.busy
 
                 clickedFunc: function() {
                     textField.text = ""
@@ -179,6 +183,7 @@ PageType {
 
             BasicButtonType {
                 id: continueButton
+                objectName: "hopInitialConnectionContinue"
 
                 Layout.fillWidth: true
                 Layout.topMargin: 16
@@ -188,12 +193,19 @@ PageType {
                 visible: textKey.textField.text !== ""
 
                 text: qsTr("Continue")
+                enabled: !HttpSubscriptions.busy
 
                 clickedFunc: function() {
-                    if (ImportController.extractConfigFromData(textKey.textField.text)) {
-                        PageController.goToPage(PageEnum.PageSetupWizardViewConfig)
-                    }
+                    ConnectionImport.prepareConnectionImport(textKey.textField.text)
                 }
+            }
+
+            ParagraphTextType {
+                Layout.fillWidth: true
+                Layout.leftMargin: 16
+                Layout.rightMargin: 16
+                visible: HttpSubscriptions.busy
+                text: qsTr("Загрузка подписки…")
             }
 
             ParagraphTextType {
@@ -250,6 +262,7 @@ PageType {
                 implicitHeight: 32
 
                 visible: Qt.platform.os !== "ios" && !IsMacOsNeBuild
+                         && !(Qt.application.name === "Hop" && Qt.platform.os === "windows")
 
                 defaultColor: AmneziaStyle.color.transparent
                 hoveredColor: AmneziaStyle.color.translucentWhite
@@ -268,7 +281,7 @@ PageType {
         }
     }
 
-    property list<QtObject> variants: [
+    property list<QtObject> variants: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? [fileOpen, qrScan, backupRestore] : [
         amneziaVpn,
         selfHostVpn,
         backupRestore,

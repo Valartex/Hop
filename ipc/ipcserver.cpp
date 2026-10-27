@@ -12,6 +12,8 @@
 #include <QRemoteObjectNode>
 #include <QString>
 #include <QStringList>
+#include <QTimer>
+#include <limits>
 
 #include "logger.h"
 #include "router.h"
@@ -20,6 +22,8 @@
 
 #ifdef Q_OS_WIN
     #include "tapcontroller_win.h"
+    #include "windowsTrafficGuard.h"
+    #include "windowsIpcPeer.h"
 #endif
 
 
@@ -28,8 +32,85 @@ IpcServer::IpcServer(QObject *parent) : IpcInterfaceSource(parent)
     connect(&m_pingHelper, &PingHelper::connectionLose, this, &IpcServer::connectionLose);
 }
 
+bool IpcServer::applyTrafficGuard(const QJsonObject &config, const QString &tunnelAlias)
+{
+#ifdef Q_OS_WIN
+    return WindowsTrafficGuard::apply(config, tunnelAlias);
+#else
+    return false;
+#endif
+}
+
+bool IpcServer::clearTrafficGuard()
+{
+#ifdef Q_OS_WIN
+    return WindowsTrafficGuard::clear();
+#else
+    return true;
+#endif
+}
+
+int IpcServer::trafficGuardFilterCount()
+{
+#ifdef Q_OS_WIN
+    return WindowsTrafficGuard::filterCount();
+#else
+    return 0;
+#endif
+}
+
+bool IpcServer::permitControlEndpoint(const QString &address, int port, bool udp)
+{
+#ifdef Q_OS_WIN
+    return WindowsTrafficGuard::permitControlEndpoint(address, port, udp);
+#else
+    return false;
+#endif
+}
+
 int IpcServer::createPrivilegedProcess()
 {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        // Дескрипторы не удерживают сами себя через shared-pointer в сигнальных лямбдах.
+        if (m_processes.size() >= 8 || m_localpid == std::numeric_limits<int>::max()) { return -1; }
+        const int id = ++m_localpid;
+        ProcessDescriptor descriptor(this);
+        descriptor.localServer->setSocketOptions(QLocalServer::WorldAccessOption);
+        if (!descriptor.localServer->listen(amnezia::getIpcProcessUrl(id))) { return -1; }
+        m_processes.insert(id, descriptor);
+        const auto retire = [this, id]() {
+            QTimer::singleShot(5000, this, [this, id]() {
+                const auto found = m_processes.constFind(id);
+                if (found == m_processes.constEnd() || found->ipcProcess->isRunning()) { return; }
+                found->localServer->close();
+                m_processes.remove(id);
+            });
+        };
+        connect(descriptor.localServer.data(), &QLocalServer::newConnection, this, [this, id, retire]() {
+            const auto found = m_processes.constFind(id);
+            if (found == m_processes.constEnd()) { return; }
+            while (found->localServer->hasPendingConnections()) {
+                auto *socket = found->localServer->nextPendingConnection();
+                if (!isTrustedHopIpcPeer(socket)) { socket->close(); socket->deleteLater(); continue; }
+                connect(socket, &QLocalSocket::disconnected, this, [this, id, retire]() {
+                    const auto found = m_processes.constFind(id);
+                    if (found != m_processes.constEnd()) { found->ipcProcess->stopOwnedProcess(); }
+                    retire();
+                });
+                found->serverNode->addHostSideConnection(socket);
+                found->serverNode->enableRemoting(found->ipcProcess.data());
+            }
+        });
+        connect(descriptor.ipcProcess.data(), &IpcServerProcess::finished, this, retire);
+        connect(descriptor.ipcProcess.data(), &IpcServerProcess::errorOccurred, this, retire);
+        QTimer::singleShot(30000, this, [this, id]() {
+            const auto found = m_processes.constFind(id);
+            if (found != m_processes.constEnd() && !found->ipcProcess->isRunning()) { found->localServer->close(); m_processes.remove(id); }
+        });
+        return id;
+    }
+#endif
 #ifdef MZ_DEBUG
     qDebug() << "IpcServer::createPrivilegedProcess";
 #endif

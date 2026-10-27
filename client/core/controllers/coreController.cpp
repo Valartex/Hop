@@ -3,6 +3,8 @@
 #include <QDirIterator>
 #include <QTranslator>
 #include <QTimer>
+#include <QFileInfo>
+#include <QStandardPaths>
 
 #include "core/utils/selfhosted/sshSession.h"
 #include "core/controllers/selfhosted/installController.h"
@@ -10,7 +12,15 @@
 #include "core/controllers/coreSignalHandlers.h"
 #include "logger.h"
 #include "secureQSettings.h"
+#include "core/locations/locationSearchModel.h"
+#include "core/locations/refreshPreferences.h"
 #include "core/utils/appUiConfig.h"
+#include "core/locations/locationCatalog.h"
+#include "core/locations/locationCoordinator.h"
+#include "core/utils/networkUtilities.h"
+#include "version.h"
+#include "ui/controllers/connectionsPageController.h"
+#include "ui/controllers/connectionsPageController.h"
 
 #if defined(Q_OS_ANDROID)
     #include "core/utils/installedAppsImageProvider.h"
@@ -43,6 +53,8 @@ CoreController::CoreController(const QSharedPointer<VpnConnection> &vpnConnectio
     initLogging();
 
     m_translator = new QTranslator(this);
+    m_hopTranslator = new QTranslator(this);
+    m_qtTranslator = new QTranslator(this);
     if (m_appSettingsRepository) {
         updateTranslator(m_appSettingsRepository->getAppLanguage());
     }
@@ -177,12 +189,84 @@ void CoreController::initCoreControllers()
     m_exportController = new ExportController(m_serversRepository, m_appSettingsRepository, this);
     m_importCoreController = new ImportController(m_serversRepository, m_appSettingsRepository, this);
     m_connectionController = new ConnectionController(m_serversRepository, m_appSettingsRepository, m_vpnConnection.get(), this);
+    QString subscriptionHelper;
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")
+        && QFileInfo(QCoreApplication::applicationFilePath()).completeBaseName().compare(QStringLiteral("Hop"), Qt::CaseInsensitive) == 0) {
+        subscriptionHelper = QCoreApplication::applicationFilePath();
+    }
+#endif
+    m_httpSubscriptionsController = new hop::HttpSubscriptionsController(m_serversRepository, m_importCoreController, m_connectionController, this, subscriptionHelper);
+    m_routeDatasetsController = new hop::RouteDatasetsController(this, {}, subscriptionHelper, m_settings);
+    m_endpointHealthController = new hop::EndpointHealthController(m_serversRepository, this, {}, {},
+        !m_settings->persistenceEnabled() || QStandardPaths::isTestModeEnabled() ? QString()
+            : QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + QStringLiteral("/health-history"));
+    connect(m_connectionController, &ConnectionController::connectionStateChanged, this, [this](Vpn::ConnectionState state) {
+        m_endpointTransportActive = state != Vpn::Disconnected;
+        m_endpointHealthController->setTunnelActive(m_endpointTransportActive || (m_locationCoordinator && m_locationCoordinator->running()));
+    });
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        QJsonObject legacyPolicy;
+        if (m_appSettingsRepository->isSitesSplitTunnelingEnabled()) {
+            const auto mode = m_appSettingsRepository->routeMode();
+            const auto sites = m_appSettingsRepository->vpnSites(mode);
+            QJsonArray rules;
+            for (auto it = sites.constBegin(); it != sites.constEnd(); ++it) {
+                rules.append(QJsonObject { { QStringLiteral("kind"), NetworkUtilities::checkIpSubnetFormat(it.key()) ? QStringLiteral("ip") : QStringLiteral("domain") },
+                    { QStringLiteral("value"), it.key() }, { QStringLiteral("target"), mode == RouteMode::VpnAllExceptSites ? QStringLiteral("direct") : QStringLiteral("vpn") } });
+            }
+            if (!rules.isEmpty()) { legacyPolicy = QJsonObject { { QStringLiteral("default"), mode == RouteMode::VpnAllExceptSites ? QStringLiteral("vpn") : QStringLiteral("direct") }, { QStringLiteral("rules"), rules } }; }
+        }
+        m_trafficPolicyController = new hop::TrafficPolicyController(m_settings, m_routeDatasetsController, this, legacyPolicy);
+        const auto syncPolicy = [this]() { m_connectionController->setTrafficPolicy(m_trafficPolicyController->snapshot(), m_trafficPolicyController->ready()); };
+        syncPolicy();
+        connect(m_trafficPolicyController, &hop::TrafficPolicyController::changed, this, syncPolicy);
+        connect(m_trafficPolicyController, &hop::TrafficPolicyController::policyChanged, this, [this, syncPolicy]() {
+            syncPolicy();
+            m_policyRestartPending = m_locationCoordinator && m_locationCoordinator->running();
+            if (m_policyRestartPending && (m_locationCoordinator->state() == hop::SelectionSession::Healthy || m_locationCoordinator->state() == hop::SelectionSession::Verifying)) {
+                m_policyRestartPending = false; m_locationCoordinator->restartCurrent();
+            }
+        });
+        m_locationCatalog = new hop::LocationCatalog(m_serversRepository, m_settings, this);
+        m_locationCoordinator = new hop::LocationCoordinator(m_locationCatalog, m_serversRepository, m_appSettingsRepository,
+            m_connectionController, m_vpnConnection.get(), this);
+        connect(m_locationCoordinator, &hop::LocationCoordinator::locationSampled, this, [this](const QString &id, int latency) {
+            const auto entry = m_locationCatalog->entry(id);
+            // Замер активного туннеля относится к его локации и не выдаёт новых конфигураций.
+            if (entry) { m_endpointHealthController->recordSample(id, latency); }
+        });
+        connect(m_locationCatalog, &hop::LocationCatalog::catalogChanged, this, [this]() {
+            QSet<QString> ids;
+            for (const auto &entry : m_locationCatalog->entries()) { ids.insert(entry.id); }
+            m_endpointHealthController->retainHistory(ids);
+        });
+        QSet<QString> initialHistoryIds;
+        for (const auto &entry : m_locationCatalog->entries()) { initialHistoryIds.insert(entry.id); }
+        m_endpointHealthController->retainHistory(initialHistoryIds);
+        setQmlContextProperty("ConnectionActions", new hop::ConnectionsPageController(m_serversRepository, m_httpSubscriptionsController,
+            m_locationCatalog, m_locationCoordinator, m_endpointHealthController, m_connectionController, this));
+        setQmlContextProperty("LocationSearch", new hop::LocationSearchModel(m_locationCatalog, this));
+        setQmlContextProperty("RefreshPreferences", new hop::RefreshPreferences(m_settings, m_httpSubscriptionsController,
+            m_locationCoordinator, m_endpointHealthController, this));
+        connect(m_locationCoordinator, &hop::SelectionSession::changed, this, [this]() {
+            m_endpointHealthController->setTunnelActive(m_endpointTransportActive || m_locationCoordinator->running());
+            if (!m_locationCoordinator->running()) { m_policyRestartPending = false; }
+            else if (m_policyRestartPending && (m_locationCoordinator->state() == hop::SelectionSession::Healthy || m_locationCoordinator->state() == hop::SelectionSession::Verifying)) {
+                m_policyRestartPending = false;
+                QTimer::singleShot(0, m_locationCoordinator, &hop::SelectionSession::restartCurrent);
+            }
+        });
+    }
+#endif
     m_settingsController = new SettingsController(m_serversRepository, m_appSettingsRepository, this);
 }
 
 void CoreController::initControllers()
 {
     m_connectionUiController = new ConnectionUiController(m_connectionController, m_serversController, this);
+    m_connectionUiController->setLocationCoordinator(m_locationCoordinator);
     setQmlContextProperty("ConnectionController", m_connectionUiController);
 
     if (m_engine) {
@@ -202,6 +286,7 @@ void CoreController::initControllers()
 
     m_importController = new ImportUiController(m_importCoreController, this);
     setQmlContextProperty("ImportController", m_importController);
+    setQmlContextProperty("ConnectionImport", this);
 
     m_exportUiController = new ExportUiController(m_exportController, this);
     setQmlContextProperty("ExportController", m_exportUiController);
@@ -217,6 +302,16 @@ void CoreController::initControllers()
 
     m_pageController = new PageController(m_serversController, m_settingsController, this);
     setQmlContextProperty("PageController", m_pageController);
+    setQmlContextProperty("HttpSubscriptions", m_httpSubscriptionsController);
+    setQmlContextProperty("RouteDatasets", m_routeDatasetsController);
+    if (m_trafficPolicyController) { setQmlContextProperty("RoutingPolicy", m_trafficPolicyController); }
+    setQmlContextProperty("EndpointHealth", m_endpointHealthController);
+    if (m_locationCatalog) { setQmlContextProperty("Locations", m_locationCatalog); }
+    if (m_locationCoordinator) { setQmlContextProperty("LocationSession", m_locationCoordinator); }
+    connect(m_httpSubscriptionsController, &hop::HttpSubscriptionsController::errorOccurred, m_pageController,
+            qOverload<const QString &>(&PageController::showErrorMessage));
+    connect(m_httpSubscriptionsController, &hop::HttpSubscriptionsController::subscriptionImported, m_pageController,
+            &PageController::goToPageHome);
 
     m_serversUiController = new ServersUiController(m_serversController, m_settingsController, m_serversModel, m_containersModel, m_defaultServerContainersModel, this);
     setQmlContextProperty("ServersUiController", m_serversUiController);
@@ -322,6 +417,8 @@ void CoreController::checkForAppUpdates()
 
 void CoreController::updateTranslator(const QLocale &locale)
 {
+    QCoreApplication::removeTranslator(m_hopTranslator);
+    QCoreApplication::removeTranslator(m_qtTranslator);
     if (!m_translator->isEmpty()) {
         QCoreApplication::removeTranslator(m_translator);
     }
@@ -351,6 +448,15 @@ void CoreController::updateTranslator(const QLocale &locale)
         }
     }
 
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        QLocale::setDefault(locale);
+        if (m_qtTranslator->load(QStringLiteral(":/translations/qtbase_%1.qm").arg(lang == QStringLiteral("zh") ? QStringLiteral("zh_CN") : lang))) {
+            QCoreApplication::installTranslator(m_qtTranslator);
+        }
+        if (m_hopTranslator->load(QStringLiteral(":/translations/hop_%1.qm").arg(lang))) {
+            QCoreApplication::installTranslator(m_hopTranslator);
+        }
+    }
     if (m_engine) {
         m_engine->retranslate();
     }
@@ -388,10 +494,27 @@ void CoreController::openConnectionByIndex(int serverIndex)
 
 void CoreController::importConfigFromData(const QString &data)
 {
+    if (data.trimmed().startsWith(QStringLiteral("https://"), Qt::CaseInsensitive)) {
+        m_httpSubscriptionsController->importSubscription(data);
+        return;
+    }
     if (!m_importController)
         return;
 
     if (m_importController->extractConfigFromData(data)) {
         m_importController->importConfig();
     }
+}
+
+bool CoreController::prepareConnectionImport(const QString &data, const QString &sourceName)
+{
+    const auto input = data.trimmed();
+    if (input.startsWith(QStringLiteral("https://"), Qt::CaseInsensitive)) {
+        return m_httpSubscriptionsController->importSubscription(input, sourceName);
+    }
+    if (m_importController->extractConfigFromData(input)) {
+        m_pageController->goToPage(PageLoader::PageEnum::PageSetupWizardViewConfig);
+        return true;
+    }
+    return false;
 }

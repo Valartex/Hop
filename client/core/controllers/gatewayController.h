@@ -41,6 +41,8 @@ private:
     agw_client_handle m_client = 0;
     bool m_publicKeyMissing = false;
     QByteArray m_lastPersistedState;
+    QString m_gatewayControlHost;
+    int m_gatewayControlPort = 80;
 };
 
 #endif // GATEWAYCONTROLLER_H

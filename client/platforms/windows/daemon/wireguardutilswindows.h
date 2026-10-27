@@ -14,6 +14,7 @@
 #include "daemon/wireguardutils.h"
 #include "windowsroutemonitor.h"
 #include "windowstunnelservice.h"
+#include "version.h"
 
 class WindowsFirewall;
 class WindowsRouteMonitor;
@@ -30,7 +31,7 @@ class WireguardUtilsWindows final : public WireguardUtils {
   QString interfaceName() override {
     return WireguardUtilsWindows::s_interfaceName();
   }
-  static const QString s_interfaceName() { return "AmneziaVPN"; }
+  static const QString s_interfaceName() { return QStringLiteral(APP_WINDOWS_TUNNEL_INTERFACE); }
   bool addInterface(const InterfaceConfig& config) override;
   bool deleteInterface() override;
 
@@ -54,6 +55,7 @@ class WireguardUtilsWindows final : public WireguardUtils {
   void buildMibForwardRow(const IPAddress& prefix, void* row);
 
   quint64 m_luid = 0;
+  bool m_policyTransport = false;
   WindowsTunnelService m_tunnel;
   QPointer<WindowsRouteMonitor> m_routeMonitor;
   QPointer<WindowsFirewall> m_firewall;

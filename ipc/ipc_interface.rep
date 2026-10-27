@@ -40,6 +40,10 @@ class IpcInterface
 
     SLOT(bool xrayStart(const QString &config));
     SLOT(bool xrayStop());
+    SLOT(bool applyTrafficGuard(const QJsonObject &config, const QString &tunnelAlias));
+    SLOT(bool clearTrafficGuard());
+    SLOT(int trafficGuardFilterCount());
+    SLOT(bool permitControlEndpoint(const QString &address, int port, bool udp));
 
     SLOT( bool startNetworkCheck(const QString& serverIpv4Gateway, const QString& deviceIpv4Address) );
     SLOT( bool stopNetworkCheck() );

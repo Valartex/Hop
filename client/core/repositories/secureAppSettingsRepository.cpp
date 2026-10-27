@@ -1,4 +1,6 @@
 #include "secureAppSettingsRepository.h"
+#include "ui/utils/hopLanguage.h"
+#include "version.h"
 
 #include <QJsonDocument>
 #include <QJsonArray>
@@ -39,12 +41,15 @@ void SecureAppSettingsRepository::setValue(const QString &key, const QVariant &v
 
 QLocale SecureAppSettingsRepository::getAppLanguage() const
 {
-    QString localeStr = value("Conf/appLanguage", QLocale::system().name()).toString();
-    return QLocale(localeStr);
+    const bool hopClient = QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop");
+    const QString stored = value("Conf/appLanguage").toString();
+    if (stored.isEmpty()) { return hopClient ? hop::systemUiLanguage() : QLocale::system(); }
+    return hopClient ? hop::supportedLanguage(QLocale(stored)) : QLocale(stored);
 }
 
 void SecureAppSettingsRepository::setAppLanguage(QLocale locale)
 {
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { locale = hop::supportedLanguage(locale); }
     setValue("Conf/appLanguage", locale.name());
     emit appLanguageChanged(locale);
 }

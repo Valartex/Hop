@@ -3,6 +3,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <QDebug>
+#include <QCoreApplication>
 #include "notificationHandler.h"
 
 #if defined(Q_OS_IOS)
@@ -43,6 +44,7 @@ NotificationHandler::~NotificationHandler() {
 
 void NotificationHandler::setConnectionState(Vpn::ConnectionState state)
 {
+    if (state == Vpn::Connected && m_connected) { return; }
     if (state != Vpn::ConnectionState::Connected && state != Vpn::ConnectionState::Disconnected) {
         return;
     }
@@ -54,14 +56,15 @@ void NotificationHandler::setConnectionState(Vpn::ConnectionState state)
     case Vpn::ConnectionState::Connected:
         m_connected = true;
 
-        title = tr("AmneziaVPN");
+        title = QCoreApplication::applicationName();
         message = tr("VPN Connected");
+        if (!m_locationName.isEmpty()) { message += QStringLiteral(" · ") + m_locationName; }
         break;
 
     case Vpn::ConnectionState::Disconnected:
         if (m_connected) {
             m_connected = false;
-            title = tr("AmneziaVPN");
+            title = QCoreApplication::applicationName();
             message = tr("VPN Disconnected");
         }
         break;
@@ -85,7 +88,7 @@ void NotificationHandler::unsecuredNetworkNotification(const QString& networkNam
     qDebug() << "Unsecured network notification shown";
 
 
-    QString title = tr("AmneziaVPN notification");
+    QString title = QCoreApplication::applicationName();
     QString message = tr("Unsecured network detected: ") + networkName;
 
     notifyInternal(UnsecuredNetwork, title, message, 2000);

@@ -31,8 +31,11 @@ namespace
 GatewayPayloadBuilder::GatewayPayloadBuilder(const SecureAppSettingsRepository *appSettingsRepository)
 {
     m_payload[apiDefs::key::osVersion] = QSysInfo::productType();
-    m_payload[apiDefs::key::appVersion] = QString(APP_VERSION);
-    m_payload[apiDefs::key::cliName] = QString(APPLICATION_NAME);
+    // Это версия контракта провайдера из используемой базы клиента, а не версия Hop.
+    // Сервер проверяет пару имени/версии; собственная нумерация Hop ему неизвестна.
+    const bool hopClient = QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop");
+    m_payload[apiDefs::key::appVersion] = hopClient ? QStringLiteral("5.0.3.1") : QStringLiteral(APP_VERSION);
+    m_payload[apiDefs::key::cliName] = hopClient ? QStringLiteral("AmneziaVPN") : QStringLiteral(APPLICATION_NAME);
 
     const QString distributionChannel = apiUtils::getDistributionChannel();
     if (!distributionChannel.isEmpty()) {

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64">
+  <defs xmlns="http://www.w3.org/2000/svg">
+    <linearGradient id="tile" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8cebdd" />
+      <stop offset="1" stop-color="#42bfc2" />
+    </linearGradient>
+  </defs>
+  
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#tile)"/>
+  <g fill="#102932">
+    <path d="M14.9 12.5H24.6Q26.0 12.5 26.0 13.9V20.5H13.5V13.9Q13.5 12.5 14.9 12.5Z"/><rect x="13.5" y="21.8" width="12.5" height="7.2"/><rect x="13.5" y="30.3" width="12.5" height="6.7"/><rect x="13.5" y="38.3" width="12.5" height="6.7"/><path d="M13.5 46.3H26.0V51.6Q26.0 53 24.6 53H14.9Q13.5 53 13.5 51.6Z"/>
+    <path d="M39.4 12.5H49.1Q50.5 12.5 50.5 13.9V20.5H38V13.9Q38 12.5 39.4 12.5Z"/><rect x="38" y="21.8" width="12.5" height="7.2"/><rect x="38" y="30.3" width="12.5" height="6.7"/><rect x="38" y="38.3" width="12.5" height="6.7"/><path d="M38 46.3H50.5V51.6Q50.5 53 49.1 53H39.4Q38 53 38 51.6Z"/>
+    <rect x="24" y="30.3" width="16" height="6.7"/>
+  </g>
+  <path d="M13.5 37C24.5 28 40 17.8 50.5 24.2L50.5 24.9C40 20 25 31.9 13.5 43.8Z" fill="url(#tile)" stroke="url(#tile)" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M13.5 37C24.5 28 40 17.8 50.5 24.2L50.5 24.9C40 20 25 31.9 13.5 43.8Z" fill="#EF862F"/>
+</svg>

@@ -5,10 +5,13 @@
 #include <QString>
 #include <QRegularExpression>
 #include <QSet>
+#include <QUrl>
 
 #include "../client/core/utils/utilities.h"
 
-#define IPC_SERVICE_URL "local:AmneziaVpnIpcInterface"
+#include "version.h"
+
+#define IPC_SERVICE_URL APP_IPC_SERVICE_URL
 
 namespace amnezia {
 
@@ -23,6 +26,9 @@ enum PermittedProcess {
 
 inline QString permittedProcessPath(PermittedProcess pid)
 {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && pid != PermittedProcess::Tun2Socks) { return {}; }
+#endif
     switch (pid) {
         case PermittedProcess::OpenVPN:
             return Utils::openVpnExecPath();
@@ -55,6 +61,17 @@ inline QString getIpcProcessUrl(int pid) {
 }
 
 inline QStringList sanitizeArguments(PermittedProcess proc, const QStringList &args) {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        if (proc != Tun2Socks || args.size() != 4 || args.at(0) != QStringLiteral("-device")
+            || args.at(1) != QStringLiteral("tun://") + QStringLiteral(APP_WINDOWS_XRAY_INTERFACE)
+            || args.at(2) != QStringLiteral("-proxy") || args.at(3).size() > 4096) { return {}; }
+        const QUrl proxy(args.at(3), QUrl::StrictMode);
+        if (!proxy.isValid() || proxy.scheme() != QStringLiteral("socks5") || proxy.host() != QStringLiteral("127.0.0.1")
+            || proxy.port() < 1 || proxy.port() > 65535 || !proxy.path().isEmpty() || proxy.hasQuery() || proxy.hasFragment()) { return {}; }
+        return args;
+    }
+#endif
     using Validator = std::function<bool(const QString&)>;
     QMap<QString, Validator> namedArgs;
     QList<Validator> positionalArgs;

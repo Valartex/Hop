@@ -11,10 +11,13 @@
 #include <ws2ipdef.h>
 
 #include <QFileInfo>
+#include <QElapsedTimer>
+#include <QThread>
 
 #include "leakdetector.h"
 #include "logger.h"
 #include "windowsfirewall.h"
+#include "windowsRouteJournal.h"
 
 #pragma comment(lib, "iphlpapi.lib")
 
@@ -89,6 +92,7 @@ QList<WireguardUtils::PeerStatus> WireguardUtilsWindows::getPeerStatus() {
 }
 
 bool WireguardUtilsWindows::addInterface(const InterfaceConfig& config) {
+  m_policyTransport = config.m_policyTransport;
   QStringList addresses;
   for (const IPAddress& ip : config.m_allowedIPAddressRanges) {
     addresses.append(ip.toString());
@@ -124,9 +128,31 @@ bool WireguardUtilsWindows::addInterface(const InterfaceConfig& config) {
     return false;
   }
   m_luid = luid.Value;
+  if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+    // SCM сообщает Running раньше окончания DAD. До Preferred маршруты могут быть недоступны.
+    QElapsedTimer readiness;
+    readiness.start();
+    bool ready = false;
+    while (!ready && readiness.elapsed() < 10000) {
+      PMIB_UNICASTIPADDRESS_TABLE table = nullptr;
+      if (GetUnicastIpAddressTable(AF_INET, &table) == NO_ERROR) {
+        bool duplicate = false;
+        for (ULONG index = 0; index < table->NumEntries; ++index) {
+          const auto &row = table->Table[index];
+          if (row.InterfaceLuid.Value != m_luid) { continue; }
+          ready = ready || row.DadState == IpDadStatePreferred;
+          duplicate = duplicate || row.DadState == IpDadStateDuplicate;
+        }
+        FreeMibTable(table);
+        if (duplicate) { m_tunnel.stop(); return false; }
+      }
+      if (!ready) { QThread::msleep(50); }
+    }
+    if (!ready) { logger.error() << "Tunnel IPv4 address did not become ready"; m_tunnel.stop(); return false; }
+  }
   m_routeMonitor = new WindowsRouteMonitor(luid.Value, this);
 
-  if (config.m_killSwitchEnabled) {
+  if (config.m_killSwitchEnabled && QStringLiteral(APPLICATION_NAME) != QStringLiteral("Hop")) {
     // Enable the windows firewall
     NET_IFINDEX ifindex;
     ConvertInterfaceLuidToIndex(&luid, &ifindex);
@@ -139,12 +165,14 @@ bool WireguardUtilsWindows::addInterface(const InterfaceConfig& config) {
 }
 
 bool WireguardUtilsWindows::deleteInterface() {
+  // Ошибка остановки не должна подтверждать клиенту завершение очистки.
+  if (!m_tunnel.stop()) { return false; }
   if (m_routeMonitor) {
     m_routeMonitor->deleteLater();
+    m_routeMonitor = nullptr;
   }
 
   m_firewall->disableKillSwitch();
-  m_tunnel.stop();
   return true;
 }
 
@@ -154,7 +182,7 @@ bool WireguardUtilsWindows::updatePeer(const InterfaceConfig& config) {
   QByteArray pskKey =
       QByteArray::fromBase64(qPrintable(config.m_serverPskKey));
 
-  if (config.m_killSwitchEnabled) {
+  if (config.m_killSwitchEnabled && QStringLiteral(APPLICATION_NAME) != QStringLiteral("Hop")) {
     // Enable the windows firewall for this peer.
     m_firewall->enablePeerTraffic(config);
   }
@@ -255,7 +283,7 @@ void WireguardUtilsWindows::buildMibForwardRow(const IPAddress& prefix,
 }
 
 bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
-  if (m_routeMonitor && (prefix.prefixLength() == 0)) {
+  if (m_routeMonitor && !m_policyTransport && (prefix.prefixLength() == 0)) {
     // If we are setting up a default route, instruct the route monitor to
     // capture traffic to all non-excluded destinations
     m_routeMonitor->setDetaultRouteCapture(true);
@@ -266,7 +294,7 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
   buildMibForwardRow(prefix, &entry);
 
   // Install the route
-  DWORD result = CreateIpForwardEntry2(&entry);
+  DWORD result = WindowsRouteJournal::instance().createRoute(&entry);
   if (result == ERROR_OBJECT_ALREADY_EXISTS) {
     return true;
   }
@@ -286,7 +314,7 @@ bool WireguardUtilsWindows::updateRoutePrefix(const IPAddress& prefix) {
 }
 
 bool WireguardUtilsWindows::deleteRoutePrefix(const IPAddress& prefix) {
-  if (m_routeMonitor && (prefix.prefixLength() == 0)) {
+  if (m_routeMonitor && !m_policyTransport && (prefix.prefixLength() == 0)) {
     // Deactivate the route capture feature.
     m_routeMonitor->setDetaultRouteCapture(false);
   }
@@ -296,7 +324,7 @@ bool WireguardUtilsWindows::deleteRoutePrefix(const IPAddress& prefix) {
   buildMibForwardRow(prefix, &entry);
 
   // Install the route
-  DWORD result = DeleteIpForwardEntry2(&entry);
+  DWORD result = WindowsRouteJournal::instance().deleteRoute(&entry);
   if (result == ERROR_NOT_FOUND) {
     return true;
   }

@@ -8,6 +8,10 @@ function(amnezia_copy_runtime_dlls)
     endif()
     get_property(_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
     foreach(_target ${_targets})
+        get_target_property(_skip_runtime_copy ${_target} HOP_SKIP_RUNTIME_COPY)
+        if(_skip_runtime_copy)
+            continue()
+        endif()
         get_target_property(_type ${_target} TYPE)
         if(_type STREQUAL "EXECUTABLE")
             add_custom_command(TARGET ${_target} POST_BUILD
@@ -26,6 +30,7 @@ set(CMAKE_AUTOUIC ON)
 
 qt6_add_resources(TEST_QRC
     ../server_scripts/serverScripts.qrc
+    ../resources/hopProviders.qrc
 )
 
 set(_main_cpp "${CMAKE_CURRENT_SOURCE_DIR}/../main.cpp")
@@ -50,6 +55,8 @@ qt_add_repc_replicas(test_common
 target_link_libraries(test_common PUBLIC
     ${LIBS}
 )
+target_compile_definitions(test_common PUBLIC "MZ_$<UPPER_CASE:${MZ_PLATFORM_NAME}>"
+    CLIENT_KEYCHAIN_NAME_STR=\"${CLIENT_KEYCHAIN_NAME}\")
 
 target_include_directories(test_common PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -59,6 +66,82 @@ target_include_directories(test_common PUBLIC
 )
 
 if(NOT ANDROID)
+    add_executable(test_location_history testLocationHistory.cpp ../core/locations/locationHistoryStore.cpp ../core/locations/locationHistoryStore.h)
+    target_include_directories(test_location_history PRIVATE ..)
+    target_link_libraries(test_location_history PRIVATE Qt6::Test Qt6::Concurrent)
+    set_property(TARGET test_location_history PROPERTY HOP_SKIP_RUNTIME_COPY TRUE)
+    add_test(NAME HopLocationHistory COMMAND test_location_history)
+    add_executable(test_http_subscriptions testHttpSubscriptions.cpp)
+    target_link_libraries(test_http_subscriptions PRIVATE Qt6::Test test_common)
+    add_test(NAME HopHttpSubscriptions COMMAND test_http_subscriptions)
+    add_executable(test_location_catalog testLocationCatalog.cpp)
+    target_link_libraries(test_location_catalog PRIVATE Qt6::Test test_common)
+    add_test(NAME HopLocationCatalog COMMAND test_location_catalog)
+    if(WIN32)
+        add_executable(hop_fake_provider tools/fakeProviderTask.cpp)
+        target_link_libraries(hop_fake_provider PRIVATE Qt6::Core)
+        set_property(TARGET hop_fake_provider PROPERTY HOP_SKIP_RUNTIME_COPY TRUE)
+        add_dependencies(test_location_catalog hop_fake_provider)
+    endif()
+    add_executable(test_selection_session testSelectionSession.cpp)
+    target_link_libraries(test_selection_session PRIVATE Qt6::Test test_common)
+    add_test(NAME HopSelectionSession COMMAND test_selection_session)
+
+    qt6_add_resources(HOP_UI_TEST_QRC ../ui/qml/qml.qrc ../images/images.qrc
+        ../images/flagKit.qrc ../resources/countries.qrc ../client_scripts/clientScripts.qrc)
+    add_executable(test_hop_dashboard testHopDashboard.cpp ${HOP_UI_TEST_QRC})
+    target_link_libraries(test_hop_dashboard PRIVATE Qt6::Test test_common)
+    qt_add_resources(test_hop_dashboard hop_test_translations PREFIX "/translations"
+        BASE "${CMAKE_CURRENT_BINARY_DIR}/.." FILES ${CLIENT_QM_FILES})
+    if(HOP_QT_TRANSLATION_FILES)
+        qt_add_resources(test_hop_dashboard hop_test_qt_translations PREFIX "/translations"
+            BASE "${_hop_qt_bin}/../translations" FILES ${HOP_QT_TRANSLATION_FILES})
+    endif()
+    add_test(NAME HopNativeDashboard COMMAND test_hop_dashboard)
+    set_tests_properties(HopNativeDashboard PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+
+    find_package(amnezia-xray-bindings REQUIRED)
+    add_executable(test_traffic_policy testTrafficPolicy.cpp ../core/routing/trafficPolicy.cpp ../core/routing/geoData.cpp)
+    target_include_directories(test_traffic_policy PRIVATE ..)
+    target_link_libraries(test_traffic_policy PRIVATE Qt6::Test Qt6::Core Qt6::Network amnezia::xray-bindings)
+    add_test(NAME HopTrafficPolicy COMMAND test_traffic_policy)
+
+    add_executable(hop_xray_probe ../../hop/tools/xrayTransportProbe.cpp)
+    add_executable(hop_gateway_probe ../../hop/tools/gatewayProbe.cpp)
+    target_link_libraries(hop_gateway_probe PRIVATE test_common)
+    target_link_libraries(hop_xray_probe PRIVATE test_common amnezia::xray-bindings)
+    if(WIN32)
+        add_executable(test_windows_network_watcher testWindowsNetworkWatcher.cpp
+            ../platforms/windows/windowsnetworkwatcher.cpp ../platforms/windows/windowsnetworkwatcher.h
+            ../platforms/windows/windowsutils.cpp ../mozilla/networkwatcherimpl.h)
+        target_include_directories(test_windows_network_watcher PRIVATE ../mozilla ../mozilla/shared)
+        target_link_libraries(test_windows_network_watcher PRIVATE Qt6::Test test_common)
+        add_test(NAME HopWindowsNetworkWatcher COMMAND test_windows_network_watcher)
+        add_executable(hop_windows_vpn_probe ../../hop/tools/windowsVpnProbe.cpp)
+        target_link_libraries(hop_windows_vpn_probe PRIVATE test_common fwpuclnt)
+        add_executable(hop_fake_endpoint_probe tools/fakeEndpointProbe.cpp)
+        target_link_libraries(hop_fake_endpoint_probe PRIVATE Qt6::Core)
+        set_property(TARGET hop_fake_endpoint_probe PROPERTY HOP_SKIP_RUNTIME_COPY TRUE)
+        add_executable(test_endpoint_health testEndpointHealth.cpp)
+        target_link_libraries(test_endpoint_health PRIVATE Qt6::Test test_common)
+        add_dependencies(test_endpoint_health hop_fake_endpoint_probe)
+        add_test(NAME HopEndpointHealth COMMAND test_endpoint_health)
+        add_executable(hop_fake_route_fetcher tools/fakeRouteFetcher.cpp)
+        target_link_libraries(hop_fake_route_fetcher PRIVATE Qt6::Core)
+        set_property(TARGET hop_fake_route_fetcher PROPERTY HOP_SKIP_RUNTIME_COPY TRUE)
+        add_executable(test_route_datasets testRouteDatasets.cpp)
+        target_link_libraries(test_route_datasets PRIVATE Qt6::Test test_common)
+        add_dependencies(test_route_datasets hop_fake_route_fetcher)
+        add_test(NAME HopRouteDatasets COMMAND test_route_datasets)
+
+        add_executable(hop_foreign_ipc_probe tools/foreignIpcProbe.cpp)
+        target_link_libraries(hop_foreign_ipc_probe PRIVATE test_common)
+        add_executable(test_xray_lifecycle testXrayProtocolLifecycle.cpp)
+        target_link_libraries(test_xray_lifecycle PRIVATE Qt6::Test test_common)
+        qt_add_repc_sources(test_xray_lifecycle ../../ipc/ipc_interface.rep)
+        add_test(NAME HopXrayLifecycle COMMAND test_xray_lifecycle)
+    endif()
+
     add_executable(test_multiple_imports
         testMultipleImports.cpp
     )

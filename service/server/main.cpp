@@ -24,14 +24,12 @@ int runApplication(int argc, char** argv)
     if(argc > 2){
         s_argc = argc;
         s_argv = argv;
-        QStringList tokens;
-        for (int i = 1; i < argc; ++i) {
-            tokens.append(QString(argv[i]));
-        }
+        const auto tokensFromWindows = app.arguments().mid(1);
+        QStringList tokens = tokensFromWindows;
 
         if (!tokens.empty() && tokens[0] == "tunneldaemon") {
-            WindowsDaemonTunnel *daemon = new WindowsDaemonTunnel();
-            daemon->run(tokens);
+            WindowsDaemonTunnel daemon;
+            return daemon.run(tokens);
         }
     }
 #endif

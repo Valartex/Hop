@@ -37,7 +37,9 @@ WindowsDaemon::WindowsDaemon() : Daemon(nullptr) {
 
   m_wgutils = WireguardUtilsWindows::create(m_firewallManager, this);
   m_dnsutils = new DnsUtilsWindows(this);
+#if APP_WINDOWS_APP_SPLIT_TUNNEL
   m_splitTunnelManager = WindowsSplitTunnel::create(m_firewallManager);
+#endif
 
   connect(m_wgutils.get(), &WireguardUtilsWindows::backendFailure, this,
           &WindowsDaemon::monitorBackendFailure);

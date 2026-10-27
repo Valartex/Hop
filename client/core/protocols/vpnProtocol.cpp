@@ -3,6 +3,10 @@
 
 #include "core/utils/errorStrings.h"
 #include "vpnProtocol.h"
+#ifdef Q_OS_WIN
+#include "routedAwgProtocol.h"
+#include "version.h"
+#endif
 
 #if defined(Q_OS_WINDOWS) || defined(Q_OS_MACX) and !defined MACOS_NE || (defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID))
     #include "openVpnProtocol.h"
@@ -46,7 +50,7 @@ void VpnProtocol::onTimeout()
     qDebug() << "Timeout";
 
     emit timeoutTimerEvent();
-    stop();
+    stopAfterFailure();
 }
 
 void VpnProtocol::startTimeoutTimer()
@@ -115,9 +119,15 @@ VpnProtocol *VpnProtocol::factory(DockerContainer container, const QJsonObject &
 #endif
 #if defined(Q_OS_WINDOWS) || defined(Q_OS_MACX) and !defined MACOS_NE || (defined(Q_OS_LINUX) && !defined(Q_OS_ANDROID))
     case DockerContainer::OpenVpn: return new OpenVpnProtocol(configuration);
-    case DockerContainer::WireGuard: return new WireguardProtocol(configuration);
-    case DockerContainer::Awg2: return new WireguardProtocol(configuration);
-    case DockerContainer::Awg: return new WireguardProtocol(configuration);
+    case DockerContainer::WireGuard:
+    case DockerContainer::Awg2:
+    case DockerContainer::Awg:
+#ifdef Q_OS_WIN
+        if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && !configuration.value(QStringLiteral("hopTrafficPolicy")).toObject().isEmpty()) {
+            return new RoutedAwgProtocol(configuration);
+        }
+#endif
+        return new WireguardProtocol(configuration);
     case DockerContainer::Xray: return new XrayProtocol(configuration);
     case DockerContainer::SSXray: return new XrayProtocol(configuration);
 #endif

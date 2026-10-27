@@ -44,6 +44,10 @@ public:
     virtual bool restoreResolvers() override;
     virtual bool xrayStart(const QString& cfg) override;
     virtual bool xrayStop() override;
+    bool applyTrafficGuard(const QJsonObject &config, const QString &tunnelAlias) override;
+    bool clearTrafficGuard() override;
+    int trafficGuardFilterCount() override;
+    bool permitControlEndpoint(const QString &address, int port, bool udp) override;
     virtual bool startNetworkCheck(const QString& serverIpv4Gateway, const QString& deviceIpv4Address) override;
     virtual bool stopNetworkCheck() override;
 

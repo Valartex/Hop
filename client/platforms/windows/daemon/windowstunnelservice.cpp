@@ -14,10 +14,8 @@
 #include "platforms/windows/windowscommons.h"
 #include "platforms/windows/windowsutils.h"
 #include "windowsdaemon.h"
-
-#define TUNNEL_NAMED_PIPE \
-  "\\\\."                 \
-  "\\pipe\\ProtectedPrefix\\Administrators\\AmneziaWG\\AmneziaVPN"
+#include "windowsTunnelSecrets.h"
+#include "version.h"
 
 constexpr uint32_t WINDOWS_TUNNEL_MONITOR_TIMEOUT_MSEC = 2000;
 
@@ -52,15 +50,19 @@ WindowsTunnelService::WindowsTunnelService(QObject* parent) : QObject(parent) {
 WindowsTunnelService::~WindowsTunnelService() {
   MZ_COUNT_CTOR(WindowsTunnelService);
   stop();
+  if (m_service) { CloseServiceHandle((SC_HANDLE)m_service); }
   CloseServiceHandle((SC_HANDLE)m_scm);
 }
 
-void WindowsTunnelService::stop() {
+bool WindowsTunnelService::stop() {
+  bool stopped = true;
   SC_HANDLE service = (SC_HANDLE)m_service;
   if (service) {
-    stopAndDeleteTunnelService(service);
-    CloseServiceHandle(service);
-    m_service = nullptr;
+    stopped = stopAndDeleteTunnelService(service);
+    if (stopped) {
+      CloseServiceHandle(service);
+      m_service = nullptr;
+    }
   }
 
   m_timer.stop();
@@ -70,6 +72,7 @@ void WindowsTunnelService::stop() {
     m_logthread.wait();
     m_logworker = nullptr;
   }
+  return stopped;
 }
 
 bool WindowsTunnelService::isRunning() {
@@ -140,15 +143,21 @@ bool WindowsTunnelService::start(const QString& configData) {
   }
 
   QString serviceCmdline;
+  WindowsTunnelSecrets sealedConfig;
   {
     QTextStream out(&serviceCmdline);
-    out << "\"" << qApp->applicationFilePath() << "\" tunneldaemon \""
-        << configData << "\"";
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+      if (!sealedConfig.seal(configData)) { logger.error() << "Cannot protect tunnel configuration"; return false; }
+      out << "\"" << QDir::toNativeSeparators(qApp->applicationFilePath()) << "\" tunneldaemon --sealed-config \"" << sealedConfig.path() << "\"";
+    } else {
+      out << "\"" << qApp->applicationFilePath() << "\" tunneldaemon \"" << configData << "\"";
+    }
   }
 
   logger.debug() << "Service:" << qApp->applicationFilePath();
 
-  service = CreateService(scm, TUNNEL_SERVICE_NAME, L"Amnezia VPN (tunnel)",
+  const QString displayName = QStringLiteral(APPLICATION_NAME " (tunnel)");
+  service = CreateService(scm, TUNNEL_SERVICE_NAME, reinterpret_cast<const wchar_t *>(displayName.utf16()),
                           SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
                           SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
                           (const wchar_t*)serviceCmdline.utf16(), nullptr, 0,
@@ -159,7 +168,8 @@ bool WindowsTunnelService::start(const QString& configData) {
   }
 
   SERVICE_DESCRIPTION sd = {
-      (wchar_t*)L"Manages the Amnezia VPN tunnel connection"};
+      (wchar_t*)(QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")
+          ? L"Manages the Hop tunnel connection" : L"Manages the Amnezia VPN tunnel connection")};
 
   if (!ChangeServiceConfig2(service, SERVICE_CONFIG_DESCRIPTION, &sd)) {
     WindowsUtils::windowsLog(
@@ -237,7 +247,7 @@ static bool stopAndDeleteTunnelService(SC_HANDLE service) {
 
 QString WindowsTunnelService::uapiCommand(const QString& command) {
   // Create a pipe to the tunnel service.
-  LPTSTR tunnelName = (LPTSTR)TEXT(TUNNEL_NAMED_PIPE);
+  LPCWSTR tunnelName = APP_WINDOWS_WG_PIPE_NAME;
   HANDLE pipe = CreateFile(tunnelName, GENERIC_READ | GENERIC_WRITE, 0, nullptr,
                            OPEN_EXISTING, 0, nullptr);
   if (pipe == INVALID_HANDLE_VALUE) {

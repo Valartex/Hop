@@ -36,7 +36,7 @@ public:
 
     ErrorCode isConnectionSupported(const QString &serverId) const;
 
-    ErrorCode openConnection(const QString &serverId);
+    ErrorCode openConnection(const QString &serverId, const QString &attemptToken = QString(), const QString &resolvedEndpoint = QString());
 
     void closeConnection();
 
@@ -62,6 +62,8 @@ public:
     bool isServiceReady() const;
 
     bool isContainerSupported(DockerContainer container) const;
+    void setTrafficPolicy(const QJsonObject &snapshot, bool ready);
+    bool usesRoutingFrontend() const { return m_policyManaged && !m_trafficPolicy.isEmpty(); }
 
 signals:
     void connectionStateChanged(Vpn::ConnectionState state);
@@ -79,6 +81,8 @@ private:
     SecureServersRepository* m_serversRepository;
     SecureAppSettingsRepository* m_appSettingsRepository;
     VpnConnection* m_vpnConnection;
+    QJsonObject m_trafficPolicy;
+    bool m_policyManaged = false, m_policyReady = true;
 };
 
 #endif

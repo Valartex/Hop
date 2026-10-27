@@ -14,81 +14,72 @@
 
 #pragma comment(lib, "Wlanapi.lib")
 #pragma comment(lib, "windowsapp.lib")
+#pragma comment(lib, "Powrprof.lib")
 
 namespace {
 Logger logger("WindowsNetworkWatcher");
 }
 
 WindowsNetworkWatcher::WindowsNetworkWatcher(QObject* parent)
-    : NetworkWatcherImpl(parent) {
+    : WindowsNetworkWatcher(parent, NativeApi {}) {}
+
+WindowsNetworkWatcher::WindowsNetworkWatcher(QObject* parent, const NativeApi &api)
+    : NetworkWatcherImpl(parent), m_api(api) {
   MZ_COUNT_CTOR(WindowsNetworkWatcher);
 }
 
 WindowsNetworkWatcher::~WindowsNetworkWatcher() {
   MZ_COUNT_DTOR(WindowsNetworkWatcher);
 
+  if (m_powerNotification) {
+    m_api.unregisterPower(m_powerNotification);
+  }
   if (m_wlanHandle) {
-    WlanCloseHandle(m_wlanHandle, nullptr);
+    m_api.closeWireless(m_wlanHandle, nullptr);
   }
 }
 
-LRESULT WindowsNetworkWatcher::PowerWndProcCallback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-  auto obj = reinterpret_cast<WindowsNetworkWatcher*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
-  if (!obj){
-    logger.debug() << "obj not casted";
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
+ULONG CALLBACK WindowsNetworkWatcher::powerCallback(PVOID context, ULONG type, PVOID) {
+  // AUTOMATIC приходит при каждом пробуждении, в том числе перед RESUMESUSPEND.
+  // Передаём событие в поток QObject; повторное пользовательское уведомление игнорируем.
+  if (context && type == PBT_APMRESUMEAUTOMATIC) {
+    auto *watcher = static_cast<WindowsNetworkWatcher *>(context);
+    QMetaObject::invokeMethod(watcher, [watcher]() {
+      if (watcher->isActive()) { emit watcher->wakeup(); }
+    }, Qt::QueuedConnection);
   }
-  switch (uMsg) {
-  case WM_POWERBROADCAST:
-    if (wParam == PBT_APMRESUMESUSPEND) {
-        emit obj->wakeup();
-    }
-    break;
-  default:
-    return DefWindowProc(hwnd, uMsg, wParam, lParam);
-  }
-  return 0;
+  return ERROR_SUCCESS;
 }
 
 void WindowsNetworkWatcher::initialize() {
   logger.debug() << "initialize";
-
-
+  if (m_initialized) { return; }
+  m_initialized = true;
+  // Callback работает без окна и WLAN, в том числе в Session0 службы SCM.
+  m_powerParameters.Callback = &WindowsNetworkWatcher::powerCallback;
+  m_powerParameters.Context = this;
+  const auto powerStatus = m_api.registerPower(DEVICE_NOTIFY_CALLBACK, &m_powerParameters, &m_powerNotification);
+  if (powerStatus != ERROR_SUCCESS) {
+    m_powerNotification = nullptr;
+    logger.debug() << "Failed to register resume notification:" << powerStatus;
+  }
   DWORD negotiatedVersion;
-  if (WlanOpenHandle(2, nullptr, &negotiatedVersion, &m_wlanHandle) !=
+  if (m_api.openWireless(2, nullptr, &negotiatedVersion, &m_wlanHandle) !=
       ERROR_SUCCESS) {
     WindowsUtils::windowsLog("Failed to open the WLAN handle");
     return;
   }
 
   DWORD prefNotifSource;
-  if (WlanRegisterNotification(m_wlanHandle, WLAN_NOTIFICATION_SOURCE_MSM,
+  if (m_api.registerWireless(m_wlanHandle, WLAN_NOTIFICATION_SOURCE_MSM,
                                true /* ignore duplicates */,
                                (WLAN_NOTIFICATION_CALLBACK)wlanCallback, this,
                                nullptr, &prefNotifSource) != ERROR_SUCCESS) {
     WindowsUtils::windowsLog("Failed to register a wlan callback");
+    m_api.closeWireless(m_wlanHandle, nullptr);
+    m_wlanHandle = nullptr;
     return;
   }
-
-  const wchar_t* className = L"PowerMonitorClass";
-  WNDCLASS wc = { 0 };
-  wc.lpfnWndProc = &WindowsNetworkWatcher::PowerWndProcCallback;
-  wc.hInstance = GetModuleHandle(NULL);
-  wc.lpszClassName = className;
-  wc.cbWndExtra = sizeof(WindowsNetworkWatcher*);
-
-  if (!RegisterClass(&wc)) {
-    logger.debug() << "Failed to register window class in createPowerMonitorWindow.";
-    return;
-  }
-
-  HWND hwnd = CreateWindowEx(0, className, L"Power Monitor", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), static_cast<LPVOID>(this));
-  if (!hwnd) {
-    logger.debug() << "Failed to create window in createPowerMonitorWindow.";
-    return;
-  }
-  SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
-
   logger.debug() << "callback registered";
 }
 

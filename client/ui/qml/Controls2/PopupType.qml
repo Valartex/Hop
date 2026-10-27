@@ -10,6 +10,7 @@ import "../Config"
 Popup {
     id: root
 
+    readonly property bool desktopHop: Qt.application.name === "Hop" && Qt.platform.os === "windows"
     property string text
     property bool closeButtonVisible: true
 
@@ -39,7 +40,7 @@ Popup {
     background: Rectangle {
         anchors.fill: parent
 
-        color: "white"
+        color: root.desktopHop ? HopStyle.surface : "white"
         radius: 4
     }
 
@@ -75,7 +76,9 @@ Popup {
                     Qt.openUrlExternally(LanguageUiController.getCurrentDocsUrl(link))
                 }
 
-                text: root.text
+                color: root.desktopHop ? HopStyle.text : AmneziaStyle.color.midnightBlack
+                textFormat: root.desktopHop ? Text.PlainText : Text.AutoText
+                text: root.desktopHop ? root.text.replace(/<[^>]*>/g, "") : root.text
 
                 MouseArea {
                     anchors.fill: parent
@@ -90,12 +93,12 @@ Popup {
 
                 implicitHeight: 32
 
-                defaultColor: "white"
+                defaultColor: root.desktopHop ? HopStyle.surface : "white"
                 hoveredColor: AmneziaStyle.color.lightGray
                 pressedColor: AmneziaStyle.color.lightGray
                 disabledColor: AmneziaStyle.color.charcoalGray
 
-                textColor: AmneziaStyle.color.midnightBlack
+                textColor: root.desktopHop ? HopStyle.text : AmneziaStyle.color.midnightBlack
                 borderWidth: 0
 
                 text: qsTr("Close")

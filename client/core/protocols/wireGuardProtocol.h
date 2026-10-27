@@ -21,11 +21,27 @@ public:
 
     ErrorCode start() override;
     void stop() override;
+    void stopAfterFailure() override;
+    bool isCleanupComplete() const override;
+    bool updateTrafficProtection(bool enabled) override;
 
     ErrorCode startMzImpl();
     ErrorCode stopMzImpl();
 
 private:
+    friend class TestXrayProtocolLifecycle;
+    WireguardProtocol(const QJsonObject &configuration, ControllerImpl *controller, QObject *parent);
+    bool applyTrafficProtection(const QString &tunnelAlias);
+    void releaseTrafficProtection();
+    QJsonObject m_guardConfig;
+    bool m_guardOwned = false;
+    bool m_releaseGuard = false;
+    bool m_preserveProtection = false;
+    bool m_started = false;
+    bool m_starting = false;
+    bool m_stopRequested = false;
+    bool m_deactivationRequested = false;
+    bool m_backendReady = false;
 
     QScopedPointer<ControllerImpl> m_impl;
 };

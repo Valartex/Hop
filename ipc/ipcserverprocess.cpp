@@ -1,6 +1,7 @@
 #include "ipcserverprocess.h"
 #include "ipc.h"
 #include <QProcess>
+#include <QCoreApplication>
 
 #ifndef Q_OS_IOS
 
@@ -26,16 +27,28 @@ IpcServerProcess::~IpcServerProcess()
 {
     qDebug() << "IpcServerProcess::~IpcServerProcess";
 }
+bool IpcServerProcess::isRunning() const { return m_process->state() != QProcess::NotRunning; }
+void IpcServerProcess::stopOwnedProcess()
+{
+    if (!isRunning()) { return; }
+    m_process->kill(); m_process->waitForFinished(1000);
+}
 
 void IpcServerProcess::start()
 {
     if (m_process->program().isEmpty()) {
         qDebug() << "IpcServerProcess failed to start, program is empty";
+        return;
     }
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && amnezia::sanitizeArguments(m_program, m_process->arguments()).isEmpty()) {
+        qWarning() << "Hop rejected privileged process arguments";
+        return;
+    }
+#endif
 
-    Utils::killProcessByName(m_process->program());
     m_process->start();
-    qDebug() << "IpcServerProcess started, " << m_process->program() << m_process->arguments();
+    qDebug() << "IpcServerProcess started, " << m_process->program();
 
     m_process->waitForStarted();
 }
@@ -66,6 +79,7 @@ void IpcServerProcess::setInputChannelMode(QProcess::InputChannelMode mode)
 void IpcServerProcess::setNativeArguments(const QString &arguments)
 {
 #ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { m_process->setNativeArguments({}); return; }
     m_process->setNativeArguments(arguments);
 #endif
 }
@@ -86,6 +100,9 @@ void IpcServerProcess::setProgram(int programId)
 
 void IpcServerProcess::setWorkingDirectory(const QString &dir)
 {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { m_process->setWorkingDirectory(QCoreApplication::applicationDirPath()); return; }
+#endif
     m_process->setWorkingDirectory(dir);
 }
 

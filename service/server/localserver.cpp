@@ -10,6 +10,10 @@
 #include <QString>
 
 #include "ipc.h"
+#ifdef Q_OS_WIN
+#include "windowsIpcPeer.h"
+#include "windowsRouteJournal.h"
+#endif
 #include "killswitch.h"
 #include "logger.h"
 
@@ -24,6 +28,12 @@ Logger logger("WgDaemonServer");
 LocalServer::LocalServer(QObject *parent) : QObject(parent),
     m_ipcServer(this)
 {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && !WindowsRouteJournal::instance().initialize()) {
+        qCritical() << "Hop owned route recovery failed; privileged IPC remains unavailable";
+        return;
+    }
+#endif
     // Create the server and listen outside of QtRO
     m_server = QSharedPointer<QLocalServer>(new QLocalServer(this));
     m_server->setSocketOptions(QLocalServer::WorldAccessOption);
@@ -35,7 +45,11 @@ LocalServer::LocalServer(QObject *parent) : QObject(parent),
 
     QObject::connect(m_server.data(), &QLocalServer::newConnection, this, [this]() {
         qDebug() << "LocalServer new connection";
-        m_serverNode.addHostSideConnection(m_server->nextPendingConnection());
+        auto *socket = m_server->nextPendingConnection();
+#ifdef Q_OS_WIN
+        if (!isTrustedHopIpcPeer(socket)) { socket->close(); socket->deleteLater(); return; }
+#endif
+        m_serverNode.addHostSideConnection(socket);
 
         if (!m_isRemotingEnabled) {
             m_isRemotingEnabled = true;

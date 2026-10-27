@@ -23,6 +23,8 @@
 #include <QObject>
 #include <QScopeGuard>
 #include <QtEndian>
+#include <QUuid>
+#include "version.h"
 
 #include "ipaddress.h"
 #include "leakdetector.h"
@@ -34,10 +36,8 @@
 #define IPV6_ADDRESS_SIZE 16
 
 // ID for the Firewall Sublayer
-DEFINE_GUID(ST_FW_WINFW_BASELINE_SUBLAYER_KEY, 0xc78056ff, 0x2bc1, 0x4211, 0xaa,
-            0xdd, 0x7f, 0x35, 0x8d, 0xef, 0x20, 0x2d);
-DEFINE_GUID(ST_FW_WINFW_DNS_SUBLAYER_KEY, 0x60090787, 0xcca1, 0x4937, 0xaa,
-            0xce, 0x51, 0x25, 0x6e, 0xf4, 0x81, 0xf3);
+const GUID ST_FW_WINFW_BASELINE_SUBLAYER_KEY = QUuid(QStringLiteral(APP_WINDOWS_WFP_BASELINE_KEY));
+const GUID ST_FW_WINFW_DNS_SUBLAYER_KEY = QUuid(QStringLiteral(APP_WINDOWS_WFP_DNS_KEY));
 // ID for the Mullvad Split-Tunnel Sublayer Provider
 DEFINE_GUID(ST_FW_PROVIDER_KEY, 0xe2c114ee, 0xf32a, 0x4264, 0xa6, 0xcb, 0x3f,
             0xa7, 0x99, 0x63, 0x56, 0xd9);
@@ -126,6 +126,7 @@ WindowsFirewall* WindowsFirewall::create(QObject* parent) {
   }
   logger.debug() << "Filter engine opened successfully.";
   if (!initSublayer()) {
+    FwpmEngineClose0(engineHandle);
     return nullptr;
   }
   s_instance = new WindowsFirewall(engineHandle, parent);
@@ -140,8 +141,9 @@ WindowsFirewall::WindowsFirewall(HANDLE session, QObject* parent)
 WindowsFirewall::~WindowsFirewall() {
   MZ_COUNT_DTOR(WindowsFirewall);
   if (m_sessionHandle != INVALID_HANDLE_VALUE) {
-    CloseHandle(m_sessionHandle);
+    FwpmEngineClose0(m_sessionHandle);
   }
+  s_instance = nullptr;
 }
 
 // static
@@ -166,10 +168,10 @@ bool WindowsFirewall::initSublayer() {
   auto cleanup = qScopeGuard([&] { FwpmEngineClose0(wfp); });
 
   return ensureSublayer(wfp, ST_FW_WINFW_BASELINE_SUBLAYER_KEY,
-                        L"Amnezia-SplitTunnel-Sublayer",
+                        reinterpret_cast<const wchar_t *>(QStringLiteral(APPLICATION_NAME "-SplitTunnel-Sublayer").utf16()),
                         L"Filters that enforce a good baseline") &&
          ensureSublayer(wfp, ST_FW_WINFW_DNS_SUBLAYER_KEY,
-                        L"Amnezia-SplitTunnel-DNS-Sublayer",
+                        reinterpret_cast<const wchar_t *>(QStringLiteral(APPLICATION_NAME "-SplitTunnel-DNS-Sublayer").utf16()),
                         L"DNS filters for split tunneling");
 }
 
@@ -215,7 +217,7 @@ bool WindowsFirewall::enableInterface(int vpnAdapterIndex) {
   FW_OK(allowDHCPTraffic(MED_WEIGHT, "Allow DHCP Traffic"));
   FW_OK(allowHyperVTraffic(MAX_WEIGHT, "Allow Hyper-V Traffic"));
   FW_OK(allowTrafficForAppOnAll(getCurrentPath(), MAX_WEIGHT,
-                                "Allow all for AmneziaVPN.exe"));
+                                QStringLiteral("Allow all for %1.exe").arg(QStringLiteral(APPLICATION_NAME))));
   FW_OK(blockTrafficOnPort(53, MED_WEIGHT, "Block all DNS"));
   FW_OK(allowLoopbackTraffic(MED_WEIGHT,
                              "Allow Loopback traffic on device %1"));
@@ -399,6 +401,29 @@ bool WindowsFirewall::disablePeerTraffic(const QString& pubkey) {
 
 bool WindowsFirewall::disableKillSwitch() {
   return KillSwitch::instance()->disableKillSwitch();
+}
+
+bool WindowsFirewall::setIpv6Blocked(bool blocked) {
+  const QString group = QStringLiteral("ipv6-routing-block");
+  const auto previousRules = m_peerRules;
+  if (FwpmTransactionBegin0(m_sessionHandle, 0) != ERROR_SUCCESS) { return false; }
+  auto rollback = qScopeGuard([&]() {
+    FwpmTransactionAbort0(m_sessionHandle);
+    m_peerRules = previousRules;
+  });
+  for (auto id : m_peerRules.values(group)) {
+    const auto result = FwpmFilterDeleteById0(m_sessionHandle, id);
+    if (result != ERROR_SUCCESS && result != FWP_E_FILTER_NOT_FOUND) { return false; }
+  }
+  m_peerRules.remove(group);
+  if (blocked) {
+    // Собственные WFP-фильтры не изменяют и не удаляют IPv6-маршруты других VPN.
+    const QList<IPAddress> ranges { IPAddress("fc00::/7"), IPAddress("2000::/4"), IPAddress("3000::/4") };
+    if (!blockTrafficTo(ranges, MED_WEIGHT, QStringLiteral("Block untunnelled IPv6"), group)) { return false; }
+  }
+  if (FwpmTransactionCommit0(m_sessionHandle) != ERROR_SUCCESS) { return false; }
+  rollback.dismiss();
+  return true;
 }
 
 bool WindowsFirewall::allowAllTraffic() {

@@ -22,6 +22,8 @@ public:
     void setConnectionState(Vpn::ConnectionState state) override;
 
     void onTranslationsUpdated() override;
+    void setConnectionDetails(const QString &subscription, const QString &location, int latencyMs);
+    QString connectionToolTip() const { return m_connectionToolTip; }
 
 public slots:
     void updateWebsiteUrl(const QString &newWebsiteUrl);
@@ -37,6 +39,10 @@ private:
     void onTrayActivated(QSystemTrayIcon::ActivationReason reason);
 
     void setTrayIcon(const QString &iconPath);
+    void updateConnectionToolTip();
+    Vpn::ConnectionState m_connectionState = Vpn::Disconnected;
+    QString m_subscriptionName, m_locationName, m_connectionToolTip;
+    int m_latencyMs = -1;
 
 private:
     QMenu m_menu;

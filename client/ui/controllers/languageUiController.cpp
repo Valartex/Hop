@@ -1,4 +1,6 @@
 #include "languageUiController.h"
+#include "ui/utils/hopLanguage.h"
+#include "version.h"
 
 LanguageUiController::LanguageUiController(SettingsController *settingsController, LanguageModel *languageModel, QObject *parent)
     : QObject(parent), m_settingsController(settingsController), m_languageModel(languageModel)
@@ -54,7 +56,7 @@ QString LanguageUiController::getCurrentLanguageName() const
 
 LanguageSettings::AvailableLanguageEnum LanguageUiController::getSystemLanguageEnum() const
 {
-    QLocale locale = QLocale::system();
+    QLocale locale = QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") ? hop::systemUiLanguage() : QLocale::system();
     switch (locale.language()) {
     case QLocale::Russian: return LanguageSettings::AvailableLanguageEnum::Russian;
     case QLocale::Chinese: return LanguageSettings::AvailableLanguageEnum::China_cn;

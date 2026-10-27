@@ -34,6 +34,8 @@ public:
     bool waitForStarted(int msecs) override;
     bool waitForFinished() override;
     bool waitForFinished(int msecs) override;
+    bool isRunning() const;
+    void stopOwnedProcess();
 
 signals:
 

@@ -3,6 +3,7 @@ pragma Singleton
 import QtQuick
 
 QtObject {
+    readonly property bool hopDesktop: Qt.application.name === "Hop" && Qt.platform.os === "windows"
     property QtObject color: QtObject {
         readonly property color transparent: 'transparent'
         readonly property color paleGray: '#D7D8DB'
@@ -36,8 +37,8 @@ QtObject {
         readonly property color translucentSlateGray: Qt.rgba(85/255, 86/255, 92/255, 0.13)
         readonly property color translucentOnyxBlack: Qt.rgba(28/255, 29/255, 33/255, 0.13)
 
-        readonly property string goldenApricotString: '#FBB26A'
-        readonly property color goldenApricotLight: '#FDBA74'
+        readonly property string goldenApricotString: AmneziaStyle.hopDesktop ? '#63D6CF' : '#FBB26A'
+        readonly property color goldenApricotLight: AmneziaStyle.hopDesktop ? '#8DE5DF' : '#FDBA74'
 
         readonly property color backgroundBase: '#101012'
         readonly property color surfaceBase: '#18181B'

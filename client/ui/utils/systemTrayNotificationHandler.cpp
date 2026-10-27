@@ -36,6 +36,18 @@ SystemTrayNotificationHandler::SystemTrayNotificationHandler(QObject* parent) :
         QDesktopServices::openUrl(QUrl(websiteUrl));
     });
 
+    if (QCoreApplication::applicationName() == QStringLiteral("Hop")) {
+        m_menu.setObjectName(QStringLiteral("hopTrayMenu"));
+        m_menu.setStyleSheet(QStringLiteral(
+            "QMenu { background: #1a2028; color: #eef2f5; border: 1px solid #35424e; padding: 4px; }"
+            "QMenu::item { color: #eef2f5; padding: 8px 24px; min-width: 140px; }"
+            "QMenu::item:selected { background: #26333f; color: #eef2f5; }"
+            "QMenu::item:disabled { color: #9aabb9; }"
+            "QMenu::separator { height: 1px; background: #35424e; margin: 4px 8px; }"));
+        m_trayActionShow->setIcon(QIcon(QStringLiteral(":/images/hop/hop.ico")));
+        m_trayActionVisitWebSite->setVisible(false);
+    }
+
     // Quit action: disconnect VPN first on macOS NE, else quit directly
     m_trayActionQuit = m_menu.addAction(QIcon(":/images/tray/cancel.png"),
                                        tr("Quit") + " " + APPLICATION_NAME,
@@ -49,12 +61,15 @@ SystemTrayNotificationHandler::SystemTrayNotificationHandler(QObject* parent) :
     m_statusIcon = new MacOSStatusIcon(this);
     m_statusIcon->setMenu(&m_menu);
 #else
-    m_systemTrayIcon.show();
+    m_systemTrayIcon.setToolTip(APPLICATION_NAME);
     connect(&m_systemTrayIcon, &QSystemTrayIcon::activated, this,
             &SystemTrayNotificationHandler::onTrayActivated);
     m_systemTrayIcon.setContextMenu(&m_menu);
 #endif
     setTrayState(Vpn::ConnectionState::Disconnected);
+#ifndef Q_OS_MAC
+    m_systemTrayIcon.show();
+#endif
 }
 
 SystemTrayNotificationHandler::~SystemTrayNotificationHandler() {
@@ -66,7 +81,9 @@ SystemTrayNotificationHandler::~SystemTrayNotificationHandler() {
 
 void SystemTrayNotificationHandler::setConnectionState(Vpn::ConnectionState state)
 {
+    m_connectionState = state;
     setTrayState(state);
+    updateConnectionToolTip();
     NotificationHandler::setConnectionState(state);
 }
 
@@ -77,9 +94,44 @@ void SystemTrayNotificationHandler::onTranslationsUpdated()
     m_trayActionDisconnect->setText(tr("Disconnect"));
     m_trayActionVisitWebSite->setText(tr("Visit Website"));
     m_trayActionQuit->setText(tr("Quit")+ " " + APPLICATION_NAME);
+    updateConnectionToolTip();
+}
+
+void SystemTrayNotificationHandler::setConnectionDetails(const QString &subscription, const QString &location, int latencyMs)
+{
+    m_subscriptionName = subscription;
+    m_locationName = location;
+    m_latencyMs = latencyMs;
+    updateConnectionToolTip();
+}
+
+void SystemTrayNotificationHandler::updateConnectionToolTip()
+{
+    m_connectionToolTip = QStringLiteral(APPLICATION_NAME);
+    if (QCoreApplication::applicationName() == QStringLiteral("Hop")) {
+        const bool connected = m_connectionState == Vpn::Connected;
+        const bool active = connected || m_connectionState == Vpn::Preparing || m_connectionState == Vpn::Connecting
+            || m_connectionState == Vpn::Reconnecting;
+        m_connectionToolTip += QStringLiteral(" · ") + (connected ? tr("Подключено") : active ? tr("Подключение…") : tr("Отключено"));
+        if (active) {
+            // Windows ограничивает подсказку трея: оставляем место всем трём сведениям.
+            const auto compact = [](QString text, int limit) {
+                text.replace(QChar('\n'), QChar(' ')); text.replace(QChar('\r'), QChar(' '));
+                return text.size() <= limit ? text : text.left(limit - 1) + QChar(0x2026);
+            };
+            m_connectionToolTip += QStringLiteral("\n") + tr("Подписка: %1").arg(compact(m_subscriptionName, 25));
+            m_connectionToolTip += QStringLiteral("\n") + tr("Локация: %1").arg(compact(m_locationName, 32));
+            m_connectionToolTip += QStringLiteral("\n") + (connected && m_latencyMs >= 0
+                ? tr("Время ответа: %1 мс").arg(m_latencyMs) : tr("Время ответа: нет данных"));
+        }
+    }
+#ifndef Q_OS_MAC
+    m_systemTrayIcon.setToolTip(m_connectionToolTip);
+#endif
 }
 
 void SystemTrayNotificationHandler::updateWebsiteUrl(const QString &newWebsiteUrl) {
+    if (QCoreApplication::applicationName() == QStringLiteral("Hop")) { return; }
     qDebug() << "Updated website URL:" << newWebsiteUrl;
     websiteUrl = newWebsiteUrl;
 }
@@ -89,8 +141,9 @@ void SystemTrayNotificationHandler::setTrayIcon(const QString &iconPath)
 #ifdef Q_OS_MAC
     m_statusIcon->setIcon(iconPath);
 #else
-    QIcon trayIconMask(QPixmap(iconPath).scaled(128,128));
-    trayIconMask.setIsMask(true);
+    QIcon trayIconMask = QCoreApplication::applicationName() == QStringLiteral("Hop")
+        ? QIcon(iconPath) : QIcon(QPixmap(iconPath).scaled(128,128));
+    trayIconMask.setIsMask(QCoreApplication::applicationName() != QStringLiteral("Hop"));
     m_systemTrayIcon.setIcon(trayIconMask);
 #endif
 }
@@ -105,40 +158,50 @@ void SystemTrayNotificationHandler::onTrayActivated(QSystemTrayIcon::ActivationR
 void SystemTrayNotificationHandler::setTrayState(Vpn::ConnectionState state)
 {
     QString resourcesPath = ":/images/tray/%1";
+    QString connectedIcon = ConnectedTrayIconName;
+    QString disconnectedIcon = DisconnectedTrayIconName;
+    QString errorIcon = ErrorTrayIconName;
+#ifdef Q_OS_WIN
+    if (QCoreApplication::applicationName() == QStringLiteral("Hop")) {
+        resourcesPath = QStringLiteral(":/images/hop/%1");
+        connectedIcon = QStringLiteral("hop.ico");
+        disconnectedIcon = errorIcon = QStringLiteral("hop-disconnected.ico");
+    }
+#endif
 
     switch (state) {
     case Vpn::ConnectionState::Disconnected:
-        setTrayIcon(QString(resourcesPath).arg(DisconnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(disconnectedIcon));
         m_trayActionConnect->setEnabled(true);
         m_trayActionDisconnect->setEnabled(false);
         break;
     case Vpn::ConnectionState::Preparing:
-        setTrayIcon(QString(resourcesPath).arg(DisconnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(disconnectedIcon));
         m_trayActionConnect->setEnabled(false);
         m_trayActionDisconnect->setEnabled(true);
         break;
     case Vpn::ConnectionState::Connecting:
-        setTrayIcon(QString(resourcesPath).arg(DisconnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(disconnectedIcon));
         m_trayActionConnect->setEnabled(false);
         m_trayActionDisconnect->setEnabled(true);
         break;
     case Vpn::ConnectionState::Connected:
-        setTrayIcon(QString(resourcesPath).arg(ConnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(connectedIcon));
         m_trayActionConnect->setEnabled(false);
         m_trayActionDisconnect->setEnabled(true);
         break;
     case Vpn::ConnectionState::Disconnecting:
-        setTrayIcon(QString(resourcesPath).arg(DisconnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(disconnectedIcon));
         m_trayActionConnect->setEnabled(false);
         m_trayActionDisconnect->setEnabled(true);
         break;
     case Vpn::ConnectionState::Reconnecting:
-        setTrayIcon(QString(resourcesPath).arg(DisconnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(disconnectedIcon));
         m_trayActionConnect->setEnabled(false);
         m_trayActionDisconnect->setEnabled(true);
         break;
     case Vpn::ConnectionState::Error:
-        setTrayIcon(QString(resourcesPath).arg(ErrorTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(errorIcon));
         m_trayActionConnect->setEnabled(true);
         m_trayActionDisconnect->setEnabled(false);
         break;
@@ -146,7 +209,7 @@ void SystemTrayNotificationHandler::setTrayState(Vpn::ConnectionState state)
     default:
         m_trayActionConnect->setEnabled(false);
         m_trayActionDisconnect->setEnabled(true);
-        setTrayIcon(QString(resourcesPath).arg(DisconnectedTrayIconName));
+        setTrayIcon(QString(resourcesPath).arg(disconnectedIcon));
     }
 
     //#ifdef Q_OS_MAC
@@ -169,7 +232,8 @@ void SystemTrayNotificationHandler::notify(NotificationHandler::Message type,
   Q_UNUSED(timerMsec);
   m_statusIcon->showMessage(title, message);
 #else
-  QIcon icon(ConnectedTrayIconName);
+  QIcon icon(QCoreApplication::applicationName() == QStringLiteral("Hop")
+      ? QStringLiteral(":/images/hop/hop.ico") : ConnectedTrayIconName);
   m_systemTrayIcon.showMessage(title, message, icon, timerMsec);
 #endif
 }

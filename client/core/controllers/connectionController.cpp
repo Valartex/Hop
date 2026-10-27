@@ -15,6 +15,7 @@
 #include "core/utils/protocolEnum.h"
 #include "core/models/containerConfig.h"
 #include "core/models/protocolConfig.h"
+#include "core/locations/resolvedEndpoint.h"
 
 using namespace amnezia;
 using namespace ProtocolUtils;
@@ -206,14 +207,32 @@ ErrorCode ConnectionController::prepareConnection(const QString &serverId,
     return ErrorCode::NoError;
 }
 
-ErrorCode ConnectionController::openConnection(const QString &serverId)
+void ConnectionController::setTrafficPolicy(const QJsonObject &snapshot, bool ready)
 {
+    m_policyManaged = true; m_policyReady = ready; m_trafficPolicy = snapshot;
+}
+
+ErrorCode ConnectionController::openConnection(const QString &serverId, const QString &attemptToken, const QString &resolvedEndpoint)
+{
+    if (m_policyManaged && !m_policyReady) { return ErrorCode::InternalError; }
     QJsonObject vpnConfiguration;
     DockerContainer container;
 
     ErrorCode errorCode = prepareConnection(serverId, vpnConfiguration, container);
     if (errorCode != ErrorCode::NoError) {
         return errorCode;
+    }
+
+    if (m_policyManaged) {
+        vpnConfiguration.insert(QStringLiteral("hopRoutingManaged"), true);
+        if (!m_trafficPolicy.isEmpty()) { vpnConfiguration.insert(QStringLiteral("hopTrafficPolicy"), m_trafficPolicy); }
+    }
+    if (!m_trafficPolicy.isEmpty() && container != DockerContainer::Xray && !ContainerUtils::isAwgContainer(container) && container != DockerContainer::WireGuard) {
+        return ErrorCode::NotSupportedOnThisPlatform;
+    }
+    if (!attemptToken.isEmpty()) { vpnConfiguration.insert(QStringLiteral("hopAttemptToken"), attemptToken); }
+    if (!resolvedEndpoint.isEmpty() && !hop::applyResolvedEndpoint(vpnConfiguration, ContainerUtils::defaultProtocol(container), resolvedEndpoint)) {
+        return ErrorCode::InternalError;
     }
 
     const auto apiV2 = m_serversRepository->apiV2Config(serverId);

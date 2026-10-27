@@ -32,6 +32,7 @@
 #include "core/controllers/selfhosted/installController.h"
 #include "core/controllers/selfhosted/exportController.h"
 #include "core/controllers/connectionController.h"
+#include "core/locations/locationCoordinator.h"
 #include "ui/models/clientManagementModel.h"
 #include "ui/controllers/api/apiNewsUiController.h"
 #include "ui/models/containersModel.h"
@@ -308,6 +309,8 @@ void CoreSignalHandlers::initAmneziaDnsToggledHandler()
 
 void CoreSignalHandlers::initServersModelUpdateHandler()
 {
+    connect(m_coreController->m_serversRepository, &SecureServersRepository::serversBatchChanged,
+            m_coreController->m_serversUiController, &ServersUiController::updateModel);
     connect(m_coreController->m_serversRepository, &SecureServersRepository::serverAdded,
             m_coreController->m_serversUiController, &ServersUiController::updateModel);
     connect(m_coreController->m_serversRepository, &SecureServersRepository::serverEdited,
@@ -364,6 +367,7 @@ void CoreSignalHandlers::initAppSplitTunnelingModelUpdateHandler()
 void CoreSignalHandlers::initPrepareConfigHandler()
 {
     connect(m_coreController->m_connectionUiController, &ConnectionUiController::prepareConfig, this, [this]() {
+        if (m_coreController->m_locationCoordinator) { return; }
         m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Preparing);
 
         const QString serverId = m_coreController->m_serversController->getDefaultServerId();
@@ -382,6 +386,7 @@ void CoreSignalHandlers::initPrepareConfigHandler()
     });
 
     connect(m_coreController->m_subscriptionUiController, &SubscriptionUiController::configValidated, this, [this](bool isValid) {
+        if (m_coreController->m_locationCoordinator) { return; }
         if (!isValid) {
             m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
             return;
@@ -391,6 +396,7 @@ void CoreSignalHandlers::initPrepareConfigHandler()
     });
 
     connect(m_coreController->m_installUiController, &InstallUiController::configValidated, this, [this](bool isValid) {
+        if (m_coreController->m_locationCoordinator) { return; }
         if (!isValid) {
             m_coreController->m_connectionController->setConnectionState(Vpn::ConnectionState::Disconnected);
             return;
@@ -473,7 +479,22 @@ void CoreSignalHandlers::initNotificationHandler()
     m_coreController->m_notificationHandler = NotificationHandler::create(m_coreController);
 
     connect(m_coreController->m_connectionController, &ConnectionController::connectionStateChanged, m_coreController->m_notificationHandler,
-            &NotificationHandler::setConnectionState);
+            [this](Vpn::ConnectionState state) {
+                auto *session = m_coreController->m_locationCoordinator;
+                auto *catalog = m_coreController->m_locationCatalog;
+                if (state == Vpn::Connected && session && !session->verified()) { return; }
+                const auto location = catalog ? catalog->entry(session && session->running() ? session->activeId() : catalog->selectedId()) : std::nullopt;
+                m_coreController->m_notificationHandler->setLocationName(location ? location->name : QString());
+                m_coreController->m_notificationHandler->setConnectionState(state);
+            });
+    if (auto *session = m_coreController->m_locationCoordinator) {
+        connect(session, &hop::SelectionSession::changed, m_coreController->m_notificationHandler, [this, session]() {
+            if (!session->verified() || !m_coreController->m_connectionController->isConnected()) { return; }
+            const auto location = session->catalog()->entry(session->activeId());
+            m_coreController->m_notificationHandler->setLocationName(location ? location->name : QString());
+            m_coreController->m_notificationHandler->setConnectionState(Vpn::Connected);
+        });
+    }
 
     connect(m_coreController->m_notificationHandler, &NotificationHandler::raiseRequested, m_coreController->m_pageController, &PageController::raiseMainWindow);
     connect(m_coreController->m_notificationHandler, &NotificationHandler::connectRequested, m_coreController->m_connectionUiController,
@@ -483,6 +504,22 @@ void CoreSignalHandlers::initNotificationHandler()
     connect(m_coreController, &CoreController::translationsUpdated, m_coreController->m_notificationHandler, &NotificationHandler::onTranslationsUpdated);
 
     auto* trayHandler = qobject_cast<SystemTrayNotificationHandler*>(m_coreController->m_notificationHandler);
+    if (trayHandler && m_coreController->m_locationCoordinator) {
+        auto *session = m_coreController->m_locationCoordinator;
+        auto *catalog = m_coreController->m_locationCatalog;
+        const auto updateDetails = [session, catalog, trayHandler]() {
+            const auto location = catalog->entry(session->running() ? session->activeId() : catalog->selectedId());
+            const auto health = session->statuses().value(session->activeId()).toMap();
+            const int latency = health.value(QStringLiteral("state")).toString() == QStringLiteral("reachable")
+                ? health.value(QStringLiteral("latencyMs"), -1).toInt() : -1;
+            trayHandler->setConnectionDetails(location ? catalog->services().value(location->serviceId).toString() : QString(),
+                location ? location->name : QString(), session->verified() ? latency : -1);
+        };
+        connect(session, &hop::SelectionSession::changed, trayHandler, updateDetails);
+        connect(session, &hop::LocationCoordinator::statusesChanged, trayHandler, updateDetails);
+        connect(catalog, &hop::LocationCatalog::catalogChanged, trayHandler, updateDetails);
+        updateDetails();
+    }
     connect(m_coreController, &CoreController::websiteUrlChanged, trayHandler, &SystemTrayNotificationHandler::updateWebsiteUrl);
 #endif    
 }

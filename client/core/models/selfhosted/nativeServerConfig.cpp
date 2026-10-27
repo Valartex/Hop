@@ -52,6 +52,9 @@ QPair<QString, QString> NativeServerConfig::getDnsPair(const QString &primaryDns
 QJsonObject NativeServerConfig::toJson() const
 {
     QJsonObject obj;
+    if (!subscription.isEmpty()) {
+        obj[QStringLiteral("hopSubscription")] = subscription;
+    }
     obj[configKey::formatVersion] = serverConfigUtils::currentConfigFormatVersion;
     
     if (!description.isEmpty()) {
@@ -87,6 +90,7 @@ QJsonObject NativeServerConfig::toJson() const
 NativeServerConfig NativeServerConfig::fromJson(const QJsonObject& json)
 {
     NativeServerConfig config;
+    config.subscription = json.value(QStringLiteral("hopSubscription")).toObject();
     
     config.description = json.value(configKey::description).toString();
     config.hostName = json.value(configKey::hostName).toString();

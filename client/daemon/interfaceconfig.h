@@ -42,6 +42,10 @@ class InterfaceConfig {
   QStringList m_vpnDisabledApps;
   QStringList m_allowedDnsServers;
   bool m_killSwitchEnabled;
+  bool m_policyTransport = false;
+  QList<IPAddress> routePrefixes() const {
+    return m_policyTransport ? QList<IPAddress> { IPAddress(QStringLiteral("0.0.0.0/0")) } : m_allowedIPAddressRanges;
+  }
 #if defined(MZ_ANDROID) || defined(MZ_IOS)
   QString m_installationId;
 #endif

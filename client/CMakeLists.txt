@@ -81,6 +81,7 @@ qt6_add_resources(QRC ${QRC}
     ${CMAKE_CURRENT_LIST_DIR}/images/images.qrc
     ${CMAKE_CURRENT_LIST_DIR}/images/flagKit.qrc
     ${CMAKE_CURRENT_LIST_DIR}/resources/countries.qrc
+    ${CMAKE_CURRENT_LIST_DIR}/resources/hopProviders.qrc
     ${CMAKE_CURRENT_LIST_DIR}/client_scripts/clientScripts.qrc
     ${CLIENT_QML_QRC_FILE}
     ${CMAKE_CURRENT_LIST_DIR}/server_scripts/serverScripts.qrc
@@ -107,13 +108,30 @@ else()
     )
 endif()
 
+if(CLIENT_APPLICATION_NAME STREQUAL "Hop")
+    list(APPEND AMNEZIAVPN_TS_FILES
+        ${CMAKE_CURRENT_LIST_DIR}/translations/hop_en.ts
+        ${CMAKE_CURRENT_LIST_DIR}/translations/hop_ru.ts
+        ${CMAKE_CURRENT_LIST_DIR}/translations/hop_zh.ts)
+endif()
+
 file(GLOB_RECURSE AMNEZIAVPN_QML_FILES ${CMAKE_CURRENT_LIST_DIR}/ui/qml/*.qml)
 
 qt6_add_translations(${PROJECT}
     TS_FILES ${AMNEZIAVPN_TS_FILES}
+    QM_FILES_OUTPUT_VARIABLE CLIENT_QM_FILES
     SOURCES ${AMNEZIAVPN_QML_FILES}
-    RESOURCE_PREFIX "/translations"
 )
+qt_add_resources(${PROJECT} client_translations PREFIX "/translations"
+    BASE "${CMAKE_CURRENT_BINARY_DIR}" FILES ${CLIENT_QM_FILES})
+if(CLIENT_APPLICATION_NAME STREQUAL "Hop")
+    get_target_property(_hop_qt_core_location Qt6::Core IMPORTED_LOCATION_RELEASE)
+    get_filename_component(_hop_qt_bin "${_hop_qt_core_location}" DIRECTORY)
+    set(HOP_QT_TRANSLATION_FILES "${_hop_qt_bin}/../translations/qtbase_ru.qm" "${_hop_qt_bin}/../translations/qtbase_zh_CN.qm")
+    # Системные подписи диалогов переводятся вместе с выбранным языком Hop.
+    qt_add_resources(${PROJECT} hop_qt_translations PREFIX "/translations" FILES ${HOP_QT_TRANSLATION_FILES}
+        BASE "${_hop_qt_bin}/../translations")
+endif()
 # -- i18n end
 
 set(IS_CI ${CI})
@@ -181,6 +199,11 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 endif()
 
 if(WIN32)
+    if(CLIENT_TARGET_NAME STREQUAL "Hop")
+        set(CLIENT_WINDOWS_ICON_FILE "${CMAKE_CURRENT_LIST_DIR}/images/hop/hop.ico")
+    else()
+        set(CLIENT_WINDOWS_ICON_FILE "${CMAKE_CURRENT_LIST_DIR}/images/app.ico")
+    endif()
     configure_file(
         ${CMAKE_CURRENT_LIST_DIR}/platforms/windows/amneziavpn.rc.in
         ${CMAKE_CURRENT_BINARY_DIR}/amneziavpn.rc
@@ -195,7 +218,7 @@ if(WIN32)
         gdi32
     )
 
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup")
+    set_target_properties(${PROJECT} PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
 if(APPLE)
@@ -328,4 +351,35 @@ endif()
 
 if(AMNEZIA_BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+if(CLIENT_TARGET_NAME STREQUAL "Hop" AND WIN32)
+    find_program(HOP_GO_EXECUTABLE NAMES go PATHS "${CMAKE_CURRENT_SOURCE_DIR}/../.tools/go/bin" REQUIRED)
+    set(HOP_AWG_PROBE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/../hop/native/awg-probe")
+    set(HOP_AWG_PROBE_BINARY "${CMAKE_CURRENT_BINARY_DIR}/hop_awg_probe.exe")
+    file(GLOB HOP_AWG_PROBE_SOURCES CONFIGURE_DEPENDS "${HOP_AWG_PROBE_SOURCE}/*.go")
+    add_custom_command(OUTPUT "${HOP_AWG_PROBE_BINARY}"
+        COMMAND ${CMAKE_COMMAND} -E env "CGO_ENABLED=0" "GOOS=windows" "GOARCH=amd64" "GOTOOLCHAIN=local"
+            "GOPATH=${CMAKE_CURRENT_SOURCE_DIR}/../.tools/go-work"
+            "GOMODCACHE=${CMAKE_CURRENT_SOURCE_DIR}/../.tools/go-mod-cache"
+            "GOCACHE=${CMAKE_CURRENT_SOURCE_DIR}/../.tools/go-build-cache"
+            ${HOP_GO_EXECUTABLE} build -buildvcs=false -trimpath "-ldflags=-s -w" -o "${HOP_AWG_PROBE_BINARY}" .
+        WORKING_DIRECTORY "${HOP_AWG_PROBE_SOURCE}"
+        DEPENDS ${HOP_AWG_PROBE_SOURCES} "${HOP_AWG_PROBE_SOURCE}/go.mod" "${HOP_AWG_PROBE_SOURCE}/go.sum"
+        VERBATIM)
+    add_custom_target(hop_awg_probe DEPENDS "${HOP_AWG_PROBE_BINARY}")
+    add_dependencies(${PROJECT} hop_awg_probe)
+    install(PROGRAMS "${HOP_AWG_PROBE_BINARY}" DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT AmneziaVPN)
+    add_executable(hop_tunnel_probe ../hop/tools/tunnelHealthProbe.cpp)
+    target_link_libraries(hop_tunnel_probe PRIVATE Qt6::Core Qt6::Network iphlpapi ws2_32)
+    install(TARGETS hop_tunnel_probe RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT AmneziaVPN)
+    find_package(amnezia-xray-bindings REQUIRED)
+    add_executable(hop_endpoint_probe ../hop/tools/endpointProbe.cpp)
+    target_link_libraries(hop_endpoint_probe PRIVATE Qt6::Core Qt6::Network amnezia::xray-bindings)
+    add_dependencies(${PROJECT} hop_endpoint_probe)
+    if(AMNEZIA_BUILD_TESTS)
+        add_dependencies(test_common hop_endpoint_probe)
+        add_dependencies(test_traffic_policy hop_endpoint_probe)
+    endif()
+    install(TARGETS hop_endpoint_probe RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT AmneziaVPN)
 endif()

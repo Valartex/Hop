@@ -6,6 +6,7 @@
 #include <QSet>
 #include <QUuid>
 #include <QDebug>
+#include <utility>
 
 #include "core/utils/serverConfigUtils.h"
 #include "core/utils/constants/apiKeys.h"
@@ -312,6 +313,75 @@ void SecureServersRepository::removeServer(const QString &serverId)
 
     syncToStorage();
     emit serverRemoved(serverId, removedIndex);
+}
+
+bool SecureServersRepository::applyNativeSubscriptionSnapshot(
+    const QString &sourceId, const QVector<QPair<QString, QJsonObject>> &snapshot, const QString &protectedServerId)
+{
+    if (sourceId.isEmpty()) { return false; }
+    const auto owner = [](const QJsonObject &config) {
+        return config.value(QStringLiteral("hopSubscription")).toObject().value(QStringLiteral("sourceId")).toString();
+    };
+    QSet<QString> incomingIds;
+    for (const auto &entry : snapshot) {
+        if (entry.first.isEmpty() || incomingIds.contains(entry.first) || owner(entry.second) != sourceId
+            || !serverConfigUtils::isConfigFormatVersionSupported(entry.second)
+            || serverConfigUtils::configTypeFromJson(entry.second) != serverConfigUtils::ConfigType::Native
+            || (m_serverJsonById.contains(entry.first) && owner(m_serverJsonById.value(entry.first)) != sourceId)) {
+            return false;
+        }
+        incomingIds.insert(entry.first);
+    }
+
+    // Сначала проверяем весь снимок; затем сохраняем одним обновлением зашифрованного списка.
+    auto nextConfigs = m_serverJsonById;
+    auto nextOrder = m_orderedServerIds;
+    for (const auto &id : m_orderedServerIds) {
+        if (owner(m_serverJsonById.value(id)) != sourceId || incomingIds.contains(id)) { continue; }
+        if (id == protectedServerId) {
+            auto config = nextConfigs.value(id);
+            auto metadata = config.value(QStringLiteral("hopSubscription")).toObject();
+            metadata.insert(QStringLiteral("retired"), true);
+            config.insert(QStringLiteral("hopSubscription"), metadata);
+            nextConfigs[id] = config;
+        } else {
+            nextConfigs.remove(id);
+            nextOrder.removeAll(id);
+        }
+    }
+    for (const auto &entry : snapshot) {
+        if (!nextConfigs.contains(entry.first)) { nextOrder.append(entry.first); }
+        nextConfigs[entry.first] = embedStorageServerId(entry.first, withoutStorageServerId(entry.second));
+    }
+    return commitServerSnapshot(std::move(nextConfigs), std::move(nextOrder));
+}
+
+bool SecureServersRepository::removeServersChecked(const QStringList &serverIds)
+{
+    if (serverIds.isEmpty()) { return false; }
+    auto configs = m_serverJsonById; auto order = m_orderedServerIds;
+    for (const auto &id : serverIds) {
+        if (!configs.remove(id)) { return false; }
+        order.removeAll(id);
+    }
+    return commitServerSnapshot(std::move(configs), std::move(order));
+}
+
+bool SecureServersRepository::commitServerSnapshot(QHash<QString, QJsonObject> nextConfigs, QVector<QString> nextOrder)
+{
+    const auto previousDefault = m_defaultServerId;
+    QJsonArray nextServers;
+    for (const auto &id : nextOrder) { if (nextConfigs.contains(id)) { nextServers.append(nextConfigs.value(id)); } }
+    if (!m_settings->setValueChecked(QStringLiteral("Servers/serversList"), QJsonDocument(nextServers).toJson())) { return false; }
+    m_serverJsonById = std::move(nextConfigs);
+    m_orderedServerIds = std::move(nextOrder);
+    if (!m_serverJsonById.contains(m_defaultServerId)) {
+        m_defaultServerId = m_orderedServerIds.isEmpty() ? QString() : m_orderedServerIds.first();
+    }
+    persistDefaultServerFields();
+    emit serversBatchChanged();
+    if (previousDefault != m_defaultServerId) { emit defaultServerChanged(m_defaultServerId); }
+    return true;
 }
 
 serverConfigUtils::ConfigType SecureServersRepository::serverKind(const QString &serverId) const

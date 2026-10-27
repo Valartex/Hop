@@ -1,4 +1,8 @@
 #include "vpnConnection.h"
+#include "version.h"
+#ifdef Q_OS_WIN
+#include "core/protocols/xrayProtocol.h"
+#endif
 
 #include <QDebug>
 #include <QEventLoop>
@@ -7,6 +11,7 @@
 #include <QJsonObject>
 #include <QObject>
 #include <QSharedPointer>
+#include <QScopedValueRollback>
 #include <QString>
 #include <QStringList>
 #include <QTimer>
@@ -41,8 +46,16 @@ VpnConnection::VpnConnection(SecureServersRepository* serversRepository, SecureA
       m_serversRepository(serversRepository),
       m_appSettingsRepository(appSettingsRepository),
       m_checkTimer(this),
+      m_cleanupTimer(this),
       m_connectionState(Vpn::ConnectionState::Disconnected)
 {
+#ifdef Q_OS_WIN
+    m_cleanupTimer.setInterval(500);
+    m_cleanupTimer.setSingleShot(true);
+    connect(&m_cleanupTimer, &QTimer::timeout, this, [this]() {
+        if (m_vpnProtocol) { disconnectFromVpn(); }
+    });
+#endif
 #if defined(Q_OS_IOS) || defined(MACOS_NE)
     m_checkTimer.setInterval(1000);
     connect(IosController::Instance(), &IosController::connectionStateChanged, this, &VpnConnection::setConnectionState);
@@ -61,6 +74,18 @@ void VpnConnection::onBytesChanged(quint64 receivedBytes, quint64 sentBytes)
 
 void VpnConnection::onKillSwitchModeChanged(bool enabled)
 {
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        if (m_vpnProtocol) {
+            if (!m_vpnProtocol->updateTrafficProtection(enabled)) { emit vpnProtocolError(ErrorCode::InternalError); }
+            return;
+        }
+        if (!enabled && m_vpnProtocol.isNull()) {
+            IpcClient::withInterface([](QSharedPointer<IpcInterfaceReplica> iface) { iface->clearTrafficGuard(); });
+            return;
+        }
+    }
+#endif
 #ifdef AMNEZIA_DESKTOP
     IpcClient::withInterface([enabled](QSharedPointer<IpcInterfaceReplica> iface){
         QRemoteObjectPendingReply<bool> reply = iface->refreshKillSwitch(enabled);
@@ -74,6 +99,7 @@ void VpnConnection::onKillSwitchModeChanged(bool enabled)
 
 void VpnConnection::onConnectionStateChanged(Vpn::ConnectionState state)
 {
+    const auto revision = m_stateRevision;
 #ifdef AMNEZIA_DESKTOP
     if (!m_serversRepository || !m_appSettingsRepository) {
         qCritical() << "VpnConnection::onConnectionStateChanged: repositories not initialized";
@@ -122,9 +148,12 @@ void VpnConnection::onConnectionStateChanged(Vpn::ConnectionState state)
     }
 
     IpcClient::withInterface([&](QSharedPointer<IpcInterfaceReplica> iface) {
+        if (revision != m_stateRevision) { return; }
         switch (state) {
             case Vpn::ConnectionState::Connected: {
+#ifndef Q_OS_WIN
                 iface->resetIpStack();
+#endif
 
                 auto flushDns = iface->flushDns();
                 if (flushDns.waitForFinished() && flushDns.returnValue())
@@ -132,7 +161,16 @@ void VpnConnection::onConnectionStateChanged(Vpn::ConnectionState state)
                 else
                     qWarning() << "VpnConnection::onConnectionStateChanged: Failed to flush DNS";
 
-                if (!ContainerUtils::isAwgContainer(container) && container != DockerContainer::WireGuard) {
+                if (revision != m_stateRevision) { return; }
+
+                const bool routingOwnedByHopXray =
+#ifdef Q_OS_WIN
+                    QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")
+                    && (container == DockerContainer::Xray || container == DockerContainer::SSXray);
+#else
+                    false;
+#endif
+                if (!routingOwnedByHopXray && !ContainerUtils::isAwgContainer(container) && container != DockerContainer::WireGuard) {
                     QString dns1 = m_vpnConfiguration.value(configKey::dns1).toString();
                     QString dns2 = m_vpnConfiguration.value(configKey::dns2).toString();
 
@@ -171,6 +209,8 @@ void VpnConnection::onConnectionStateChanged(Vpn::ConnectionState state)
                 else
                     qWarning() << "VpnConnection::onConnectionStateChanged: Failed to flush DNS";
 
+                if (revision != m_stateRevision) { return; }
+
                 auto clearSavedRoutes = iface->clearSavedRoutes();
                 if (clearSavedRoutes.waitForFinished() && clearSavedRoutes.returnValue())
                     qDebug() << "VpnConnection::onConnectionStateChanged: Successfully cleared saved routes";
@@ -207,6 +247,7 @@ void VpnConnection::setRepositories(SecureServersRepository* serversRepository, 
 
 void VpnConnection::addSitesRoutes(const QString &gw, amnezia::RouteMode mode)
 {
+    if (m_vpnConfiguration.value(QStringLiteral("hopRoutingManaged")).toBool()) { return; }
 #ifdef AMNEZIA_DESKTOP
     if (!m_appSettingsRepository) {
         qCritical() << "VpnConnection::addSitesRoutes: repositories not initialized";
@@ -323,6 +364,9 @@ Vpn::ConnectionState VpnConnection::connectionState() const
 
 void VpnConnection::connectToVpn(const QString &serverId, DockerContainer container, const QJsonObject &vpnConfiguration)
 {
+    if (m_disconnectInProgress) { emit vpnProtocolError(ErrorCode::InternalError); return; }
+    const auto revision = ++m_connectRevision;
+    m_attemptToken.clear();
     if (!m_appSettingsRepository || !m_serversRepository) {
         qCritical() << "VpnConnection::connectToVpn: repositories not initialized";
         setConnectionState(Vpn::ConnectionState::Error);
@@ -335,20 +379,33 @@ void VpnConnection::connectToVpn(const QString &serverId, DockerContainer contai
              << m_appSettingsRepository->routeMode();
 
     m_remoteAddress = NetworkUtilities::getIPAddress(vpnConfiguration.value(configKey::hostName).toString());
-    setConnectionState(Vpn::ConnectionState::Connecting);
+    if (revision != m_connectRevision) { return; }
 
     m_vpnConfiguration = vpnConfiguration;
 
 #ifdef AMNEZIA_DESKTOP
     if (m_vpnProtocol) {
+        m_cleanupTimer.stop();
+        const auto previous = m_vpnProtocol;
         disconnect(m_vpnProtocol.data(), &VpnProtocol::protocolError, this, &VpnConnection::vpnProtocolError);
-        m_vpnProtocol->stop();
+        previous->stopAfterFailure();
+        if (revision != m_connectRevision) { return; }
+        if (m_vpnProtocol != previous) { emit vpnProtocolError(ErrorCode::InternalError); return; }
+#ifdef Q_OS_WIN
+        if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && !previous->isCleanupComplete()) {
+            emit vpnProtocolError(ErrorCode::InternalError); return;
+        }
+#endif
+        m_cleanupTimer.stop();
         m_vpnProtocol.reset();
     }
     appendKillSwitchConfig();
 #endif
 
     appendSplitTunnelingConfig();
+    m_attemptToken = vpnConfiguration.value(QStringLiteral("hopAttemptToken")).toString();
+    setConnectionState(Vpn::ConnectionState::Connecting);
+    if (revision != m_connectRevision) { return; }
 
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS) && !defined(MACOS_NE)
     m_vpnProtocol.reset(VpnProtocol::factory(container, m_vpnConfiguration));
@@ -369,24 +426,43 @@ void VpnConnection::connectToVpn(const QString &serverId, DockerContainer contai
     return;
 #endif
 
+    const auto prepared = m_vpnProtocol;
+    const auto preparedAttempt = m_attemptToken;
     createProtocolConnections();
+    if (revision != m_connectRevision || m_vpnProtocol != prepared || m_attemptToken != preparedAttempt) { return; }
 
-    if (ErrorCode err = m_vpnProtocol->start(); err != ErrorCode::NoError) {
-        setConnectionState(Vpn::ConnectionState::Error);
-        emit vpnProtocolError(err);
-    }
+    startProtocol();
+}
+
+void VpnConnection::startProtocol()
+{
+    if (!m_vpnProtocol) { return; }
+    // IPC внутри start обрабатывает события: отмена не должна уничтожить выполняющийся протокол.
+    const auto protocol = m_vpnProtocol;
+    const auto attempt = m_attemptToken;
+    const auto error = protocol->start();
+    if (m_vpnProtocol != protocol || m_attemptToken != attempt) { return; }
+    if (error != ErrorCode::NoError) { protocol->setLastError(error); emit vpnProtocolError(error); }
 }
 
 void VpnConnection::createProtocolConnections()
 {
     connect(m_vpnProtocol.data(), &VpnProtocol::protocolError, this, &VpnConnection::vpnProtocolError);
-    connect(m_vpnProtocol.data(), &VpnProtocol::connectionStateChanged, this, &VpnConnection::setConnectionState);
+    connect(m_vpnProtocol.data(), &VpnProtocol::trafficRatesChanged, this, &VpnConnection::trafficRatesChanged);
+    connect(m_vpnProtocol.data(), &VpnProtocol::connectionStateChanged, this, [this, protocol = m_vpnProtocol.data()](Vpn::ConnectionState state) {
+        if (m_vpnProtocol.data() != protocol) { return; }
+        // Протокол уже остановлен, но владелец ещё завершает очистку или ожидает её повтор.
+        // Disconnected публикуется после освобождения протокола в disconnectFromVpn.
+        const bool cleanupPending = m_disconnectInProgress || m_cleanupTimer.isActive() || !protocol->isCleanupComplete();
+        setConnectionState(state == Vpn::Disconnected && cleanupPending ? Vpn::Disconnecting : state);
+    });
     connect(m_vpnProtocol.data(), SIGNAL(bytesChanged(quint64, quint64)), this, SLOT(onBytesChanged(quint64, quint64)));
 
 #ifdef AMNEZIA_DESKTOP
     IpcClient::withInterface([this](QSharedPointer<IpcInterfaceReplica> rep) {
-        connect(rep.data(), &IpcInterfaceReplica::networkChanged, this, &VpnConnection::reconnectToVpn, Qt::QueuedConnection);
-        connect(rep.data(), &IpcInterfaceReplica::wakeup, this, &VpnConnection::reconnectToVpn, Qt::QueuedConnection);
+        const auto delivery = Qt::ConnectionType(Qt::QueuedConnection | Qt::UniqueConnection);
+        connect(rep.data(), &IpcInterfaceReplica::networkChanged, this, &VpnConnection::reconnectToVpn, delivery);
+        connect(rep.data(), &IpcInterfaceReplica::wakeup, this, &VpnConnection::reconnectToVpn, delivery);
     });
 #endif
 }
@@ -459,6 +535,13 @@ void VpnConnection::appendSplitTunnelingConfig()
         }
     }
 
+    if (m_vpnConfiguration.value(QStringLiteral("hopRoutingManaged")).toBool()) {
+        m_vpnConfiguration.insert(configKey::splitTunnelType, amnezia::RouteMode::VpnAllSites);
+        m_vpnConfiguration.insert(configKey::splitTunnelSites, QJsonArray());
+        m_vpnConfiguration.insert(configKey::appSplitTunnelType, amnezia::AppsRouteMode::VpnAllApps);
+        m_vpnConfiguration.insert(configKey::splitTunnelApps, QJsonArray());
+        return;
+    }
     amnezia::RouteMode routeMode = amnezia::RouteMode::VpnAllSites;
     QJsonArray sitesJsonArray;
     if (m_appSettingsRepository->isSitesSplitTunnelingEnabled()) {
@@ -555,6 +638,13 @@ QString VpnConnection::bytesPerSecToText(quint64 bytes)
 }
 
 void VpnConnection::reconnectToVpn() {
+    if (m_disconnectInProgress || m_cleanupTimer.isActive()) { return; }
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && !m_attemptToken.isEmpty()) {
+        emit attemptRecoveryRequested(m_attemptToken);
+        return;
+    }
+#endif
     if (m_vpnProtocol.isNull())
         return;
 
@@ -568,22 +658,40 @@ void VpnConnection::reconnectToVpn() {
 
     setConnectionState(Vpn::ConnectionState::Reconnecting);
 
-    m_vpnProtocol->stop();
-    if (ErrorCode err = m_vpnProtocol->start(); err != ErrorCode::NoError) {
-        setConnectionState(Vpn::ConnectionState::Error);
+    const auto protocol = m_vpnProtocol;
+    protocol->stopAfterFailure();
+    if (m_vpnProtocol != protocol || m_cleanupTimer.isActive() || m_disconnectInProgress) { return; }
+    if (ErrorCode err = protocol->start(); err != ErrorCode::NoError) {
+        protocol->setLastError(err);
         emit vpnProtocolError(err);
     }
 }
 
 void VpnConnection::disconnectFromVpn()
 {
+    ++m_connectRevision;
+    // waitForFinished обрабатывает события: повторный queued disconnect не должен разрушить протокол первого вызова.
+    if (m_disconnectInProgress) { return; }
+    QScopedValueRollback<bool> disconnecting(m_disconnectInProgress,true);
+    m_cleanupTimer.stop();
+    const auto protocol = m_vpnProtocol;
+    m_attemptToken.clear();
 #if defined(Q_OS_IOS) || defined(MACOS_NE)
     // iOS/macOS NE use IosController directly; m_vpnProtocol is not set there.
     IosController::Instance()->disconnectVpn();
     disconnect(&m_checkTimer, &QTimer::timeout, IosController::Instance(), &IosController::checkStatus);
 #endif
 
-    if (m_vpnProtocol.isNull()) {
+    if (protocol.isNull()) {
+#ifdef Q_OS_WIN
+        if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+            const bool cleared = IpcClient::withInterface([](QSharedPointer<IpcInterfaceReplica> iface) {
+                auto reply = iface->clearTrafficGuard();
+                return reply.waitForFinished(5000) && reply.returnValue();
+            }, []() { return false; });
+            if (!cleared) { emit serviceIsNotReady(); }
+        }
+#endif
         setConnectionState(Vpn::ConnectionState::Disconnected);
         return;
     }
@@ -602,21 +710,44 @@ void VpnConnection::disconnectFromVpn()
                           });
 #endif
 
-    m_vpnProtocol->stop();
+    protocol->stop();
+    if (m_vpnProtocol != protocol) { return; }
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && !protocol->isCleanupComplete()) {
+        m_cleanupTimer.start(); return;
+    }
+#endif
 
 #if !defined(Q_OS_ANDROID) && !defined(AMNEZIA_DESKTOP)
     m_vpnProtocol->deleteLater();
 #endif
 
     m_vpnProtocol = nullptr;
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && m_connectionState != Vpn::Disconnected) { setConnectionState(Vpn::Disconnected); }
+#endif
 }
 
 void VpnConnection::setConnectionState(Vpn::ConnectionState state) {
+    const auto revision = ++m_stateRevision;
     onConnectionStateChanged(state);
+    // Отмена во время ожидания IPC уже установила более новое состояние.
+    if (revision != m_stateRevision) { return; }
 
     if (state == Vpn::Disconnected && m_connectionState == Vpn::Reconnecting)
         return;
 
     m_connectionState = state;
     emit connectionStateChanged(state);
+    if (!m_attemptToken.isEmpty()) { emit attemptStateChanged(m_attemptToken, state); }
+}
+
+void VpnConnection::suspendForSelection(const QString &token)
+{
+    if (m_suspendInProgress || m_disconnectInProgress) { emit selectionSuspended(token, false); return; }
+    QScopedValueRollback<bool> suspending(m_suspendInProgress, true);
+    m_attemptToken.clear();
+    if (m_vpnProtocol) { m_vpnProtocol->stopAfterFailure(); }
+    const bool complete = !m_vpnProtocol || m_vpnProtocol->isCleanupComplete();
+    emit selectionSuspended(token, complete);
 }

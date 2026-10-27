@@ -52,6 +52,7 @@ public slots:
     void connectToVpn(const QString &serverId, DockerContainer container, const QJsonObject &vpnConfiguration);
     void reconnectToVpn();
     void disconnectFromVpn();
+    void suspendForSelection(const QString &token);
 
     void onKillSwitchModeChanged(bool enabled);
     void disconnectSlots();
@@ -60,10 +61,14 @@ public slots:
 
 signals:
     void bytesChanged(quint64 receivedBytes, quint64 sentBytes);
+    void trafficRatesChanged(double vpnDown, double vpnUp, double directDown, double directUp);
     void connectionStateChanged(Vpn::ConnectionState state);
     void vpnProtocolError(amnezia::ErrorCode error);
 
     void serviceIsNotReady();
+    void attemptStateChanged(const QString &token, Vpn::ConnectionState state);
+    void selectionSuspended(const QString &token, bool cleaned);
+    void attemptRecoveryRequested(const QString &token);
 
 protected slots:
     void onBytesChanged(quint64 receivedBytes, quint64 sentBytes);
@@ -73,15 +78,22 @@ protected:
     QSharedPointer<VpnProtocol> m_vpnProtocol;
 
 private:
+    friend class TestXrayProtocolLifecycle;
     SecureServersRepository* m_serversRepository;
     SecureAppSettingsRepository* m_appSettingsRepository;
 
     QJsonObject m_vpnConfiguration;
     QJsonObject m_routeMode;
     QString m_remoteAddress;
+    QString m_attemptToken;
 
     // Only for iOS for now, check counters
     QTimer m_checkTimer;
+    QTimer m_cleanupTimer;
+    bool m_disconnectInProgress = false;
+    bool m_suspendInProgress = false;
+    quint64 m_stateRevision = 0;
+    quint64 m_connectRevision = 0;
 
 #ifdef Q_OS_ANDROID
    AndroidVpnProtocol* androidVpnProtocol = nullptr;
@@ -93,6 +105,7 @@ private:
    Vpn::ConnectionState m_connectionState;
 
    void createProtocolConnections();
+   void startProtocol();
 
    void appendSplitTunnelingConfig();
    void appendKillSwitchConfig();

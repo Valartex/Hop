@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">Hop — 2. Полёт над H</title>
+  <desc id="desc">H с более лёгкой оранжевой траекторией прыжка.</desc>
+  <defs>
+    <linearGradient id="tile" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8CEBDD" /><stop offset="1" stop-color="#42BFC2" />
+    </linearGradient>
+  </defs>
+  <rect x="1.7" y="1.7" width="60.6" height="60.6" rx="18.3" fill="#4C6570" />
+  <rect x="2.3" y="2.3" width="59.4" height="59.4" rx="17.7" fill="#E5EEF0" />
+  <rect x="2.65" y="2.65" width="58.7" height="58.7" rx="17.35" fill="url(#tile)" />
+  <g>
+    <g fill="#073641">
+      <rect x="12" y="10.8" width="13.4" height="42.5" rx="1.35" />
+      <rect x="38.6" y="10.8" width="13.45" height="42.5" rx="1.35" />
+      <rect x="24" y="28.85" width="16" height="7.2" />
+    </g>
+    <path d="M14 17C22 3 41 2.5 51 14L49.8 15.3C40 5.5 24 6.5 16 18Z" fill="url(#tile)" stroke="url(#tile)" stroke-width="0.9" stroke-linejoin="round" /><path d="M14 17C22 3 41 2.5 51 14L49.8 15.3C40 5.5 24 6.5 16 18Z" fill="#EF862F" /></g>
+</svg>

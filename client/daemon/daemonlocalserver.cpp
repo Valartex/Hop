@@ -11,6 +11,10 @@
 #include "daemonlocalserverconnection.h"
 #include "leakdetector.h"
 #include "logger.h"
+#include "version.h"
+#ifdef Q_OS_WIN
+#include "windowsIpcPeer.h"
+#endif
 
 #if defined(MZ_MACOS) || defined(MZ_LINUX)
 #  include <sys/stat.h>
@@ -55,6 +59,9 @@ bool DaemonLocalServer::initialize() {
 
     QLocalSocket* socket = m_server.nextPendingConnection();
     Q_ASSERT(socket);
+#ifdef Q_OS_WIN
+    if (!isTrustedHopIpcPeer(socket)) { socket->close(); socket->deleteLater(); return; }
+#endif
 
     DaemonLocalServerConnection* connection =
         new DaemonLocalServerConnection(&m_server, socket);
@@ -67,7 +74,7 @@ bool DaemonLocalServer::initialize() {
 
 QString DaemonLocalServer::daemonPath() const {
 #if defined(MZ_WINDOWS)
-  return "\\\\.\\pipe\\amneziavpn";
+  return QStringLiteral(APP_WINDOWS_DAEMON_PIPE);
 #endif
 #if defined(MZ_MACOS) || defined(MZ_LINUX)
   QDir dir("/var/run");

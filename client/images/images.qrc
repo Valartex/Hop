@@ -1,8 +1,16 @@
 <RCC>
     <qresource prefix="/">
         <file>../fonts/pt-root-ui_vf.ttf</file>
+        <file alias="fonts/hop-cjk-ui.ttf">../fonts/hop-cjk-ui.ttf</file>
+        <file alias="licenses/hop-cjk-ui-OFL.txt">../fonts/hop-cjk-ui-OFL.txt</file>
     </qresource>
     <qresource prefix="/images">
+        <file>hop/logo-preview.png</file>
+        <file>hop/hop.ico</file>
+        <file>hop/hop-disconnected.ico</file>
+        <file>hop/default.png</file>
+        <file>hop/active.png</file>
+        <file>hop/error.png</file>
         <file>amneziaBigLogo.png</file>
         <file>AmneziaVPN.png</file>
         <file>controls/alert-circle.svg</file>

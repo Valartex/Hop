@@ -7,6 +7,8 @@
 #include <QMimeData>
 #include <QQuickItem>
 #include <QQuickStyle>
+#include <QIcon>
+#include <QPalette>
 #include <QResource>
 #include <QStandardPaths>
 #include <QTextDocument>
@@ -15,6 +17,13 @@
 #include <QEvent>
 #include <QDir>
 #include <QSettings>
+#include <QJsonDocument>
+#include <QSaveFile>
+#include <QImage>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <psapi.h>
+#endif
 #include <QtQuick/QQuickWindow>  
 #include <QWindow>     
 
@@ -25,6 +34,10 @@
 #include "ui/models/installedAppsModel.h"
 #include "ui/utils/mtProxyPublicHostInput.h"
 #include "version.h"
+#ifdef Q_OS_WIN
+#include "hopUiVpnTest.h"
+#include "hopDesktopStyle.h"
+#endif
 #include "core/utils/appUiConfig.h"
 
 #include "platforms/ios/QRCodeReaderBase.h"
@@ -64,7 +77,20 @@ AmneziaApplication::AmneziaApplication(int &argc, char *argv[]) : AMNEZIA_BASE_C
     QFile::setPermissions(configLoc2, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
 #endif
 
-    m_settings = new SecureQSettings(ORGANIZATION_NAME, APPLICATION_NAME, this);
+#ifdef Q_OS_WIN
+    // argv[0] может быть относительным; флаг уже проверен main до создания приложения.
+    m_hopVpnTest = QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && arguments().size() == 3
+        && (arguments().at(1) == QStringLiteral("--hop-ui-vpn-test") || arguments().at(1) == QStringLiteral("--hop-ui-api-vpn-test"));
+    m_hopSmokeTest = m_hopVpnTest || (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && arguments().size() == 2
+        && arguments().at(1) == QStringLiteral("--hop-ui-smoke-test"));
+#endif
+    const bool persistentApiTest = m_hopVpnTest && arguments().at(1) == QStringLiteral("--hop-ui-api-vpn-test");
+    if (m_hopSmokeTest && !persistentApiTest) {
+        // Обычный VM-стенд не перезаписывает пользовательский DAT-кэш.
+        QStandardPaths::setTestModeEnabled(true);
+    }
+    m_settings = m_hopSmokeTest && !persistentApiTest ? new SecureQSettings("Hop-Smoke", "memory", this, true, false)
+                              : new SecureQSettings(ORGANIZATION_NAME, APPLICATION_NAME, this);
     m_nam = new QNetworkAccessManager(this);
 }
 
@@ -74,7 +100,7 @@ AmneziaApplication::~AmneziaApplication()
     if (m_vpnConnection && m_vpnConnectionThread.isRunning()) {
         QMetaObject::invokeMethod(m_vpnConnection.get(), "disconnectSlots", Qt::BlockingQueuedConnection);
         
-        QMetaObject::invokeMethod(m_vpnConnection.get(), "disconnectFromVpn", Qt::BlockingQueuedConnection);
+        if (!m_hopSmokeTest || m_hopVpnTest) { QMetaObject::invokeMethod(m_vpnConnection.get(), "disconnectFromVpn", Qt::BlockingQueuedConnection); }
     }
 #endif
 
@@ -107,6 +133,9 @@ namespace {
 void AmneziaApplication::init()
 {
     m_engine = new QQmlApplicationEngine;
+    if (m_hopSmokeTest) {
+        connect(m_engine, &QQmlEngine::warnings, this, [this](const QList<QQmlError> &warnings) { m_hopSmokeWarnings += warnings.size(); });
+    }
 
     const QUrl url(QStringLiteral(APP_QML_ENTRYPOINT));
     QObject::connect(
@@ -118,6 +147,9 @@ void AmneziaApplication::init()
             }
             // install filter on main window
             if (auto win = qobject_cast<QQuickWindow*>(obj)) {
+                if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+                    win->setIcon(QIcon(QStringLiteral(":/images/hop/hop.ico")));
+                }
                 win->installEventFilter(this);
 #ifdef Q_OS_ANDROID
                 QObject::connect(win, &QQuickWindow::sceneGraphError,
@@ -175,9 +207,59 @@ void AmneziaApplication::init()
         }
     }
 
+    if (m_hopSmokeTest && !m_hopVpnTest) {
+        m_coreController->importConfigFromData(QStringLiteral("vless://00000000-0000-4000-8000-000000000001@192.0.2.1:443?security=none&type=tcp#Hop%20UI%20Test"));
+    }
     m_engine->load(url);
 
     m_coreController->setQmlRoot();
+#ifdef Q_OS_WIN
+    if (m_hopVpnTest) {
+        QTimer::singleShot(500, this, [this]() {
+            const int code = hop::runUiVpnTest(m_coreController.get(), m_engine, arguments().at(2), m_hopSmokeWarnings);
+            exit(code);
+        });
+    } else if (m_hopSmokeTest) {
+        QTimer::singleShot(2000, this, [this]() {
+            m_coreController->pageController()->goToPage(PageLoader::PageEnum::PageSettingsSplitTunneling, false);
+        });
+        QTimer::singleShot(3000, this, [this]() {
+            FILETIME created {}, ended {}, kernel {}, user {};
+            if (GetProcessTimes(GetCurrentProcess(), &created, &ended, &kernel, &user)) {
+                m_hopSmokeCpuStart = (quint64(kernel.dwHighDateTime) << 32) + kernel.dwLowDateTime
+                    + (quint64(user.dwHighDateTime) << 32) + user.dwLowDateTime;
+                m_hopSmokeIdleClock.start();
+            }
+        });
+        QTimer::singleShot(6000, this, [this]() {
+            HANDLE token = nullptr; TOKEN_ELEVATION elevation {}; DWORD size = 0;
+            bool ordinary = OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)
+                && GetTokenInformation(token, TokenElevation, &elevation, sizeof(elevation), &size) && !elevation.TokenIsElevated;
+            if (token) { CloseHandle(token); }
+            auto *window = m_engine->rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(m_engine->rootObjects().first());
+            const bool routes = window && window->findChild<QObject *>(QStringLiteral("hopRoutesEnabled"));
+            auto *connection = m_coreController->findChild<ConnectionController *>();
+            const bool service = connection && connection->isServiceReady();
+            FILETIME created {}, ended {}, kernel {}, user {}; double idleCpu = -1;
+            if (m_hopSmokeIdleClock.isValid() && m_hopSmokeIdleClock.elapsed() > 0 && GetProcessTimes(GetCurrentProcess(), &created, &ended, &kernel, &user)) {
+                const auto ticks = (quint64(kernel.dwHighDateTime) << 32) + kernel.dwLowDateTime
+                    + (quint64(user.dwHighDateTime) << 32) + user.dwLowDateTime;
+                idleCpu = double(ticks - m_hopSmokeCpuStart) / 100.0 / m_hopSmokeIdleClock.elapsed();
+            }
+            PROCESS_MEMORY_COUNTERS_EX memory {}; memory.cb = sizeof(memory);
+            const bool measured = GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&memory), sizeof(memory));
+            const auto resultPath = QDir::tempPath() + QStringLiteral("/hop-ui-smoke-%1").arg(applicationPid());
+            const bool image = window && window->grabWindow().save(resultPath + QStringLiteral(".png"));
+            QSaveFile result(resultPath + QStringLiteral(".json"));
+            const auto data = QJsonDocument(QJsonObject { { "ordinaryUser", ordinary }, { "routesVisible", routes },
+                { "serviceReady", service }, { "qmlWarnings", m_hopSmokeWarnings }, { "imageSaved", image },
+                { "idleCpuPercentOneCore", idleCpu }, { "workingSetMiB", measured ? double(memory.WorkingSetSize) / 1048576 : -1 },
+                { "privateMiB", measured ? double(memory.PrivateUsage) / 1048576 : -1 } }).toJson(QJsonDocument::Compact);
+            const bool saved = result.open(QIODevice::WriteOnly) && result.write(data) == data.size() && result.commit();
+            exit(ordinary && routes && service && m_hopSmokeWarnings == 0 && image && saved ? 0 : 3);
+        });
+    }
+#endif
 
 #if CLIENT_ENABLE_APP_UPDATES
     m_coreController->checkForAppUpdates();
@@ -256,7 +338,14 @@ void AmneziaApplication::registerTypes()
 
 void AmneziaApplication::loadFonts()
 {
-    QQuickStyle::setStyle("Basic");
+#ifdef Q_OS_WIN
+    if (applicationName() == QStringLiteral("Hop")) {
+        hop::applyDesktopStyle();
+    } else
+#endif
+    {
+        QQuickStyle::setStyle("Basic");
+    }
 
     QFontDatabase::addApplicationFont(QStringLiteral(APP_UI_FONT_RESOURCE));
 }
@@ -271,6 +360,14 @@ bool AmneziaApplication::parseCommands()
     m_parser.addOption(m_optCleanup);
     m_parser.addOption(m_optConnect);
     m_parser.addOption(m_optImport);
+#ifdef Q_OS_WIN
+    QCommandLineOption smoke(QStringLiteral("hop-ui-smoke-test"));
+    smoke.setFlags(QCommandLineOption::HiddenFromHelp); m_parser.addOption(smoke);
+    QCommandLineOption vpnTest(QStringLiteral("hop-ui-vpn-test"), QString(), QStringLiteral("pipe"));
+    vpnTest.setFlags(QCommandLineOption::HiddenFromHelp); m_parser.addOption(vpnTest);
+    QCommandLineOption apiVpnTest(QStringLiteral("hop-ui-api-vpn-test"), QString(), QStringLiteral("pipe"));
+    apiVpnTest.setFlags(QCommandLineOption::HiddenFromHelp); m_parser.addOption(apiVpnTest);
+#endif
     
     m_parser.process(*this);
 

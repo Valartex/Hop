@@ -1,9 +1,22 @@
 set(CLIENT_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/..)
 
 set(HEADERS ${HEADERS}
+    ${CLIENT_ROOT_DIR}/core/locations/locationHistoryStore.h
+    ${CLIENT_ROOT_DIR}/core/locations/endpointHealthController.h
+    ${CLIENT_ROOT_DIR}/core/locations/locationCatalog.h
+    ${CLIENT_ROOT_DIR}/core/locations/selectionSession.h
+    ${CLIENT_ROOT_DIR}/core/locations/locationCoordinator.h
+    ${CLIENT_ROOT_DIR}/core/locations/locationSearchModel.h
+    ${CLIENT_ROOT_DIR}/core/locations/refreshPreferences.h
+    ${CLIENT_ROOT_DIR}/core/routing/geoData.h
+    ${CLIENT_ROOT_DIR}/core/routing/trafficPolicy.h
+    ${CLIENT_ROOT_DIR}/core/routing/trafficPolicyController.h
+    ${CLIENT_ROOT_DIR}/core/routing/routeDatasetsController.h
+    ${CLIENT_ROOT_DIR}/core/subscriptions/subscriptionParser.h
+    ${CLIENT_ROOT_DIR}/core/subscriptions/subscriptionFetcher.h
+    ${CLIENT_ROOT_DIR}/core/subscriptions/httpSubscriptionsController.h
     ${CLIENT_ROOT_DIR}/core/utils/migrations.h
     ${CLIENT_ROOT_DIR}/../ipc/ipc.h
-    ${CLIENT_ROOT_DIR}/amneziaApplication.h
     ${CLIENT_ROOT_DIR}/core/utils/errorCodes.h
     ${CLIENT_ROOT_DIR}/core/utils/routeModes.h
     ${CLIENT_ROOT_DIR}/core/utils/commonStructs.h
@@ -41,7 +54,6 @@ set(HEADERS ${HEADERS}
     ${CLIENT_ROOT_DIR}/core/controllers/appSplitTunnelingController.h
     ${CLIENT_ROOT_DIR}/core/controllers/ipSplitTunnelingController.h
     ${CLIENT_ROOT_DIR}/core/controllers/allowedDnsController.h
-    ${CLIENT_ROOT_DIR}/core/controllers/selfhosted/exportController.h
     ${CLIENT_ROOT_DIR}/core/controllers/connectionController.h
     ${CLIENT_ROOT_DIR}/core/controllers/settingsController.h
     ${CLIENT_ROOT_DIR}/core/controllers/logsController.h
@@ -98,8 +110,19 @@ if(NOT ANDROID)
 endif()
 
 set(SOURCES ${SOURCES}
+    ${CLIENT_ROOT_DIR}/core/locations/locationHistoryStore.cpp
+    ${CLIENT_ROOT_DIR}/core/locations/endpointHealthController.cpp
+    ${CLIENT_ROOT_DIR}/core/locations/locationCatalog.cpp
+    ${CLIENT_ROOT_DIR}/core/locations/selectionSession.cpp
+    ${CLIENT_ROOT_DIR}/core/locations/locationCoordinator.cpp
+    ${CLIENT_ROOT_DIR}/core/routing/geoData.cpp
+    ${CLIENT_ROOT_DIR}/core/routing/trafficPolicy.cpp
+    ${CLIENT_ROOT_DIR}/core/routing/trafficPolicyController.cpp
+    ${CLIENT_ROOT_DIR}/core/routing/routeDatasetsController.cpp
+    ${CLIENT_ROOT_DIR}/core/subscriptions/subscriptionParser.cpp
+    ${CLIENT_ROOT_DIR}/core/subscriptions/subscriptionFetcher.cpp
+    ${CLIENT_ROOT_DIR}/core/subscriptions/httpSubscriptionsController.cpp
     ${CLIENT_ROOT_DIR}/core/utils/migrations.cpp
-    ${CLIENT_ROOT_DIR}/amneziaApplication.cpp
     ${CLIENT_ROOT_DIR}/core/utils/errorStrings.cpp
     ${CLIENT_ROOT_DIR}/core/utils/containers/containerUtils.cpp
     ${CLIENT_ROOT_DIR}/core/protocols/protocolUtils.cpp
@@ -128,7 +151,6 @@ set(SOURCES ${SOURCES}
     ${CLIENT_ROOT_DIR}/core/controllers/appSplitTunnelingController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/ipSplitTunnelingController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/allowedDnsController.cpp
-    ${CLIENT_ROOT_DIR}/core/controllers/selfhosted/exportController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/connectionController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/settingsController.cpp
     ${CLIENT_ROOT_DIR}/core/controllers/logsController.cpp
@@ -288,6 +310,7 @@ if(WIN32 OR (APPLE AND NOT IOS AND NOT MACOS_NE) OR (LINUX AND NOT ANDROID))
         ${CLIENT_ROOT_DIR}/core/protocols/openVpnProtocol.h
         ${CLIENT_ROOT_DIR}/core/protocols/wireGuardProtocol.h
         ${CLIENT_ROOT_DIR}/core/protocols/xrayProtocol.h
+        $<$<BOOL:${WIN32}>:${CLIENT_ROOT_DIR}/core/protocols/routedAwgProtocol.h>
         ${CLIENT_ROOT_DIR}/core/protocols/awgProtocol.h
         ${CLIENT_ROOT_DIR}/mozilla/localsocketcontroller.h
     )
@@ -299,6 +322,7 @@ if(WIN32 OR (APPLE AND NOT IOS AND NOT MACOS_NE) OR (LINUX AND NOT ANDROID))
         ${CLIENT_ROOT_DIR}/core/protocols/openVpnProtocol.cpp
         ${CLIENT_ROOT_DIR}/core/protocols/wireGuardProtocol.cpp
         ${CLIENT_ROOT_DIR}/core/protocols/xrayProtocol.cpp
+        $<$<BOOL:${WIN32}>:${CLIENT_ROOT_DIR}/core/protocols/routedAwgProtocol.cpp>
         ${CLIENT_ROOT_DIR}/core/protocols/awgProtocol.cpp
     )
 endif()

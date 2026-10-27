@@ -146,3 +146,23 @@ macos-with-sign-build.sh
 DeveloperIdApplicationCertificate.p12
 DeveloperIdInstallerCertificate.p12
 
+
+# Hop local tooling
+/.tools/
+/.research/
+/hop/preview/__pycache__/
+
+# Исходные скрипты Hop не являются каталогами сборки.
+!/hop/scripts/build-*.ps1
+!/hop/scripts/enter-build-env.ps1
+
+# Локальные данные и учётные сведения не входят в исходники.
+__pycache__/
+*.py[cod]
+*.log
+*.hph
+*.dmp
+*.jks
+*.keystore
+/.env
+/.env.*

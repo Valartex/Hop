@@ -29,6 +29,7 @@ public:
     void unsecuredNetworkNotification(const QString& networkName);
 
     void messageClickHandle();
+    void setLocationName(const QString &name) { m_locationName = name; }
 
 public slots:
     virtual void setConnectionState(Vpn::ConnectionState state);
@@ -60,6 +61,7 @@ private:
     // We want to show a 'disconnected' notification only if we were actually
     // connected.
     bool m_connected = false;
+    QString m_locationName;
 };
 
 #endif  // NOTIFICATIONHANDLER_H

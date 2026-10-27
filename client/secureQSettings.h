@@ -15,10 +15,12 @@ class SecureQSettings : public QObject
 
 public:
     explicit SecureQSettings(const QString &organization, const QString &application = QString(),
-                             QObject *parent = nullptr, bool enableEncryption = true);
+                             QObject *parent = nullptr, bool enableEncryption = true, bool enablePersistence = true);
 
     QVariant value(const QString &key, const QVariant &defaultValue = QVariant()) const;
     void setValue(const QString &key, const QVariant &value);
+    virtual bool setValueChecked(const QString &key, const QVariant &value);
+    bool persistenceEnabled() const { return m_persistenceEnabled; }
     void remove(const QString &key);
 
     QByteArray backupAppConfig() const;
@@ -59,6 +61,7 @@ private:
     const QByteArray magicString { "EncData" }; // Magic keyword used for mark encrypted QByteArray
 
     bool m_encryptionEnabled;
+    bool m_persistenceEnabled;
 
     mutable QRecursiveMutex m_mutex;
 };

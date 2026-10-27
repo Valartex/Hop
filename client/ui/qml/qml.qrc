@@ -1,5 +1,26 @@
 <RCC>
     <qresource prefix="/ui/qml">
+        <file>Components/HopDialog.qml</file>
+        <file>Components/HopButton.qml</file>
+        <file>Components/HopTextField.qml</file>
+        <file>Components/HopComboBox.qml</file>
+        <file>Components/HopCheckBox.qml</file>
+        <file>Components/HopSwitch.qml</file>
+        <file>Components/HopScrollBar.qml</file>
+        <file>Components/HopMenu.qml</file>
+        <file>Components/HopMenuItem.qml</file>
+        <file>Components/HopSettingsGroup.qml</file>
+        <file>Components/HopLocationPolicy.qml</file>
+        <file>Pages2/PageHopLocations.qml</file>
+        <file>Components/HopServiceDialog.qml</file>
+        <file>Components/HopLocationStatsDialog.qml</file>
+        <file>Components/HopLatencyChart.qml</file>
+        <file>Components/HopLatencyCurve.js</file>
+        <file>Components/HopGeoDataDialog.qml</file>
+        <file>Components/HopRoutesEditor.qml</file>
+        <file>Pages2/PageSettingsHopRoutes.qml</file>
+        <file>Pages2/PageSettingsSplitTunnelingLegacy.qml</file>
+        <file>Components/HopLocationsDialog.qml</file>
         <file>Components/UpdateSupportDrawer.qml</file>
         <file>Components/AdLabel.qml</file>
         <file>Components/ConnectButton.qml</file>
@@ -92,10 +113,14 @@
         <file>Filters/ContainersModelFilters.qml</file>
         <file>main2.qml</file>
         <file>Modules/Style/AmneziaStyle.qml</file>
+        <file>Modules/Style/HopStyle.qml</file>
         <file>Modules/Style/qmldir</file>
         <file>Pages2/PageDeinstalling.qml</file>
         <file>Pages2/PageDevMenu.qml</file>
         <file>Pages2/PageHome.qml</file>
+        <file>Pages2/PageHomeLegacy.qml</file>
+        <file>Pages2/PageHomeHop.qml</file>
+        <file>Components/HopDashboard.qml</file>
         <file>Pages2/PageProtocolAwgSettings.qml</file>
         <file>Pages2/PageProtocolOpenVpnSettings.qml</file>
         <file>Pages2/PageProtocolRaw.qml</file>
@@ -119,6 +144,14 @@
         <file>Pages2/PageServiceSocksProxySettings.qml</file>
         <file>Pages2/PageServiceTorWebsiteSettings.qml</file>
         <file>Pages2/PageSettings.qml</file>
+        <file>Pages2/PageSettingsLegacy.qml</file>
+        <file>Pages2/PageSettingsHop.qml</file>
+        <file>Pages2/PageImportReviewHop.qml</file>
+        <file>Pages2/PageBackupHop.qml</file>
+        <file>Pages2/PageSetupWizardViewConfigLegacy.qml</file>
+        <file>Pages2/PageSettingsBackupLegacy.qml</file>
+        <file>Pages2/PageSettingsAboutLegacy.qml</file>
+        <file>Pages2/PageSettingsAboutHop.qml</file>
         <file>Pages2/PageSettingsAbout.qml</file>
         <file>Pages2/PageSettingsApiAvailableCountries.qml</file>
         <file>Pages2/PageSettingsApiServerInfo.qml</file>

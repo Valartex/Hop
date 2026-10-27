@@ -23,6 +23,7 @@
 
 #include "leakdetector.h"
 #include "logger.h"
+#include "version.h"
 #include "daemon/daemonerrors.h"
 
 #include "core/utils/protocolEnum.h"
@@ -40,7 +41,7 @@ namespace {
 Logger logger("LocalSocketController");
 }
 
-LocalSocketController::LocalSocketController() {
+LocalSocketController::LocalSocketController(const QString &windowsPipe) : m_windowsPipe(windowsPipe) {
   MZ_COUNT_CTOR(LocalSocketController);
 
   m_socket = new QLocalSocket(this);
@@ -76,15 +77,16 @@ void LocalSocketController::errorOccurred(
   }
 
   qCritical() << "ControllerError";
+  emit backendUnavailable();
   disconnectInternal();
 }
 
 void LocalSocketController::disconnectInternal() {
-  // We're still eReady as the Deamon is alive
-  // and can make a new connection.
-  m_daemonState = eReady;
+  m_daemonState = m_socket->state() == QLocalSocket::ConnectedState ? eReady : eDisconnected;
   m_initializingRetry = 0;
   m_initializingTimer.stop();
+  if (m_disconnectReported) { return; }
+  m_disconnectReported = true;
   emit disconnected();
 }
 
@@ -104,7 +106,7 @@ void LocalSocketController::initializeInternal() {
   m_daemonState = eInitializing;
 
 #ifdef MZ_WINDOWS
-  QString path = "\\\\.\\pipe\\amneziavpn";
+  QString path = m_windowsPipe.isEmpty() ? QStringLiteral(APP_WINDOWS_DAEMON_PIPE) : m_windowsPipe;
 #else
   QString path = "/var/run/amneziavpn/daemon.socket";
   if (!QFileInfo::exists(path)) {
@@ -123,6 +125,7 @@ void LocalSocketController::daemonConnected() {
 }
 
 void LocalSocketController::activate(const QJsonObject &rawConfig) {
+  m_disconnectReported = false;
   QString protocolName = rawConfig.value("protocol").toString();
 
   int splitTunnelType = rawConfig.value("splitTunnelType").toInt();
@@ -136,6 +139,7 @@ void LocalSocketController::activate(const QJsonObject &rawConfig) {
 
   QJsonObject json;
   json.insert("type", "activate");
+  json.insert("hopPolicyTransport", rawConfig.value(QStringLiteral("hopPolicyTransport")).toBool());
   //  json.insert("hopindex", QJsonValue((double)hop.m_hopindex));
   json.insert("privateKey", wgConfig.value(amnezia::configKey::clientPrivKey));
   json.insert("deviceIpv4Address", wgConfig.value(amnezia::configKey::clientIp));
@@ -269,14 +273,19 @@ void LocalSocketController::deactivate() {
 
   if (m_daemonState != eReady) {
     logger.debug() << "No disconnect, controller is not ready";
-    emit disconnected();
+    disconnectInternal();
     return;
   }
 
   QJsonObject json;
   json.insert("type", "deactivate");
   write(json);
+  // Hop снимает защиту только после подтверждения очистки со стороны службы.
+#if !defined(MZ_WINDOWS)
   emit disconnected();
+#else
+  if (QStringLiteral(APPLICATION_NAME) != QStringLiteral("Hop")) { emit disconnected(); }
+#endif
 }
 
 void LocalSocketController::checkStatus() {
@@ -452,8 +461,11 @@ void LocalSocketController::parseCommand(const QByteArray& command) {
       return;
     }
 
-    logger.debug() << "Handshake completed with:"
-                   << pubkey.toString();
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+      logger.debug() << "Handshake completed";
+    } else {
+      logger.debug() << "Handshake completed with:" << pubkey.toString();
+    }
 
     checkStatus();
 
@@ -477,6 +489,14 @@ void LocalSocketController::parseCommand(const QByteArray& command) {
       // REPORTERROR(ErrorHandler::ControllerError, "controller");
       return;
     }
+#ifdef MZ_WINDOWS
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+      // Ошибка очистки требует сохранения защиты; подтверждения disconnected нет.
+      emit backendUnavailable();
+      disconnectInternal();
+      return;
+    }
+#endif
     switch (static_cast<DaemonError>(errorCode)) {
       case DaemonError::ERROR_NONE:
         [[fallthrough]];

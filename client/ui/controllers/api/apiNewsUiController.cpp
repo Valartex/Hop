@@ -1,4 +1,5 @@
 #include "apiNewsUiController.h"
+#include "version.h"
 
 ApiNewsUiController::ApiNewsUiController(NewsModel* newsModel,
                                          NewsController* newsController,
@@ -9,6 +10,10 @@ ApiNewsUiController::ApiNewsUiController(NewsModel* newsModel,
 
 void ApiNewsUiController::fetchNews(bool showError)
 {
+#ifdef Q_OS_WIN
+    // В Hop нет новостного раздела провайдера и фоновой загрузки его материалов.
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { return; }
+#endif
     if (!m_newsController) {
         qWarning() << "NewsController is null, skip fetchNews";
         return;

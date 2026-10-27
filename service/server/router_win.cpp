@@ -8,6 +8,9 @@
 #include <QtConcurrent>
 
 #include <core/utils/networkUtilities.h>
+#include "platforms/windows/daemon/windowsfirewall.h"
+#include "version.h"
+#include "windowsRouteJournal.h"
 
 LONG (NTAPI * NtSuspendProcess)(HANDLE ProcessHandle) = NULL;
 LONG (NTAPI * NtResumeProcess)(HANDLE ProcessHandle)  = NULL;
@@ -19,6 +22,7 @@ QList<QString> RouterWin::kIpv6Subnets = { "fc00::/7", "2000::/4", "3000::/4" };
 RouterWin &RouterWin::Instance()
 {
     static RouterWin s;
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { return s; }
     BOOL ok;
     ok = s.InitNtFunctions();
     if (!ok) qDebug() << "RouterWin::Instance failed to InitNtFunctions";
@@ -31,6 +35,8 @@ RouterWin &RouterWin::Instance()
 
 int RouterWin::routeAddList(const QString &gw, const QStringList &ips)
 {
+    const bool hop = QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop");
+    if (hop && !WindowsRouteJournal::instance().initialize()) { return 0; }
 //    qDebug().noquote() << QString("ROUTE ADD List: IPs size:%1, GW: %2")
 //                          .arg(ips.size())
 //                          .arg(gw);
@@ -44,33 +50,10 @@ int RouterWin::routeAddList(const QString &gw, const QStringList &ips)
         return 0;
     }
 
-    PMIB_IPFORWARDTABLE pIpForwardTable = NULL;
-    DWORD dwSize = 0;
-    BOOL bOrder = FALSE;
     DWORD dwStatus = 0;
 
-
-    // Find out how big our buffer needs to be.
-    dwStatus = GetIpForwardTable(pIpForwardTable, &dwSize, bOrder);
-    if (dwStatus == ERROR_INSUFFICIENT_BUFFER) {
-        // Allocate the memory for the table
-        if (!(pIpForwardTable = (PMIB_IPFORWARDTABLE) malloc(dwSize))) {
-            qDebug() << "Malloc failed. Out of memory.";
-            return 0;
-        }
-        // Now get the table.
-        dwStatus = GetIpForwardTable(pIpForwardTable, &dwSize, bOrder);
-    }
-
-    if (dwStatus != ERROR_SUCCESS) {
-        qDebug() << "getIpForwardTable failed.";
-        if (pIpForwardTable)
-            free(pIpForwardTable);
-        return 0;
-    }
-
     int success_count = 0;
-    MIB_IPFORWARDROW ipfrow;
+    MIB_IPFORWARDROW ipfrow {};
 
     ipfrow.dwForwardPolicy = 0;
     ipfrow.dwForwardAge = INFINITE;
@@ -81,7 +64,16 @@ int RouterWin::routeAddList(const QString &gw, const QStringList &ips)
 
     // Set iface for route
     IPAddr dwGwAddr = inet_addr(gw.toStdString().c_str());
-    if (GetBestInterface(dwGwAddr, &ipfrow.dwForwardIfIndex) != NO_ERROR) {
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && dwGwAddr == 0) {
+        // On-link шлюз не определяет интерфейс. Нулевой адрес иначе выбирает VPN default route.
+        if (ips.size() != 1) { return 0; }
+        const auto destination = QHostAddress::parseSubnet(ips.first());
+        if (destination.first.protocol() != QAbstractSocket::IPv4Protocol || destination.second != 32) { return 0; }
+        const auto uplink = NetworkUtilities::getGatewayAndIfaceTo(destination.first).second;
+        if (!uplink.isValid() || uplink.humanReadableName() == QStringLiteral(APP_WINDOWS_TUNNEL_INTERFACE)
+            || uplink.humanReadableName() == QStringLiteral(APP_WINDOWS_XRAY_INTERFACE)) { return 0; }
+        ipfrow.dwForwardIfIndex = uplink.index(); ipfrow.dwForwardType = MIB_IPROUTE_TYPE_DIRECT;
+    } else if (GetBestInterface(dwGwAddr, &ipfrow.dwForwardIfIndex) != NO_ERROR) {
         qDebug() << "Router::routeAddList : GetBestInterface failed";
         return false;
     }
@@ -119,17 +111,24 @@ int RouterWin::routeAddList(const QString &gw, const QStringList &ips)
         ipfrow.dwForwardDest = inet_addr(ip.toStdString().c_str());
 
         // mask
-        in_addr maskAddr;
-        inet_pton(AF_INET, mask.toStdString().c_str(), &maskAddr);
+        in_addr maskAddr {};
+        if (inet_pton(AF_INET, mask.toStdString().c_str(), &maskAddr) != 1) { continue; }
         ipfrow.dwForwardMask = maskAddr.S_un.S_addr;
 
         dwStatus = CreateIpForwardEntry(&ipfrow);
         if (dwStatus == NO_ERROR){
-            m_ipForwardRows.insert(ip, ipfrow);
+            if (hop) {
+                if (!WindowsRouteJournal::instance().remember(ipfrow)) {
+                    // Только что созданная нами строка не остаётся без записи при ошибке сохранения.
+                    const auto rollback = DeleteIpForwardEntry(&ipfrow);
+                    qWarning() << "Hop route journal save failed; new route rollback:" << rollback;
+                    continue;
+                }
+            } else { m_ipForwardRows.insert(ip, ipfrow); }
             success_count++;
         }
         else if (dwStatus == ERROR_OBJECT_ALREADY_EXISTS) {
-            m_ipForwardRows.insert(ip, ipfrow);
+            // Уже существующий маршрут не становится собственностью Hop и не удаляется при отключении.
             success_count++;
             qDebug() << "Router::routeAdd: warning, route already exist:" << ip << gw;
         }
@@ -137,10 +136,6 @@ int RouterWin::routeAddList(const QString &gw, const QStringList &ips)
             qDebug() << "Router::routeAdd: failed CreateIpForwardEntry(), Error:" << ip << gw << dwStatus;
         }
     }
-
-    // Free resources
-    if (pIpForwardTable)
-        free(pIpForwardTable);
 
     qDebug() << "Router::routeAddList finished, success: " << success_count << "/" << ips.size();
 
@@ -151,59 +146,41 @@ int RouterWin::routeAddList(const QString &gw, const QStringList &ips)
 
 bool RouterWin::clearSavedRoutes()
 {
-    if (m_ipForwardRows.isEmpty()) return true;
-
-    qDebug() << "RouterWin::clearSavedRoutes forward rows size:" << m_ipForwardRows.size();
-
-    // Declare and initialize variables
-    PMIB_IPFORWARDTABLE pIpForwardTable = NULL;
-    DWORD dwSize = 0;
-    BOOL bOrder = FALSE;
-    DWORD dwStatus = 0;
-
-    // Find out how big our buffer needs to be.
-    dwStatus = GetIpForwardTable(pIpForwardTable, &dwSize, bOrder);
-    if (dwStatus == ERROR_INSUFFICIENT_BUFFER) {
-        // Allocate the memory for the table
-        if (!(pIpForwardTable = (PMIB_IPFORWARDTABLE) malloc(dwSize))) {
-            qDebug() << "Router::clearSavedRoutes : Malloc failed. Out of memory";
-            return false;
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { return WindowsRouteJournal::instance().clear(); }
+    for (auto it = m_ipForwardRows.begin(); it != m_ipForwardRows.end();) {
+        const auto status = DeleteIpForwardEntry(&it.value());
+        if (status == NO_ERROR || status == ERROR_NOT_FOUND || status == ERROR_FILE_NOT_FOUND) {
+            it = m_ipForwardRows.erase(it);
+        } else {
+            // Ошибка не теряет запись: следующий вызов сможет повторить удаление.
+            qWarning() << "Router::clearSavedRoutes failed, code:" << status;
+            ++it;
         }
-        // Now get the table.
-        dwStatus = GetIpForwardTable(pIpForwardTable, &dwSize, bOrder);
     }
-
-    if (dwStatus != ERROR_SUCCESS) {
-        qDebug() << "Router::clearSavedRoutes : getIpForwardTable failed";
-        if (pIpForwardTable)
-            free(pIpForwardTable);
-
-        return false;
-    }
-
-    int removed_count = 0;
-    for (auto i = m_ipForwardRows.begin(); i != m_ipForwardRows.end(); ++i) {
-        dwStatus = DeleteIpForwardEntry(&i.value());
-
-        if (dwStatus != ERROR_SUCCESS) {
-            qDebug() << "Router::clearSavedRoutes : Could not delete old row" << i.key();
-        }
-        else  removed_count++;
-    }
-
-    if (pIpForwardTable)
-        free(pIpForwardTable);
-
-    qDebug() << "Router::clearSavedRoutes : removed routes:" << removed_count << "of" << m_ipForwardRows.size();
-    m_ipForwardRows.clear();
-
     suspendWcmSvc(false);
-
-    return true;
+    return m_ipForwardRows.isEmpty();
 }
 
 int RouterWin::routeDeleteList(const QString &gw, const QStringList &ips)
 {
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        auto &journal = WindowsRouteJournal::instance(); if (!journal.initialize()) { return 0; }
+        const QHostAddress gateway(gw); if (gateway.protocol() != QAbstractSocket::IPv4Protocol) { return 0; }
+        int removed = 0;
+        for (const auto &row : journal.routes()) {
+            for (const auto &value : ips) {
+                const auto subnet = QHostAddress::parseSubnet(value.contains('/') ? value : value + QStringLiteral("/32"));
+                if (subnet.first.protocol() != QAbstractSocket::IPv4Protocol || subnet.second < 0) { continue; }
+                const DWORD mask = subnet.second == 0 ? 0 : 0xffffffffu << (32 - subnet.second);
+                if (ntohl(row.dwForwardDest) == subnet.first.toIPv4Address() && ntohl(row.dwForwardMask) == mask
+                    && ntohl(row.dwForwardNextHop) == gateway.toIPv4Address()) {
+                    if (journal.remove(row)) { ++removed; }
+                    break;
+                }
+            }
+        }
+        return removed;
+    }
 //    qDebug().noquote() << QString("ROUTE DELETE List: IPs size:%1, GW: %2")
 //                          .arg(ips.size())
 //                          .arg(gw);
@@ -278,14 +255,17 @@ int RouterWin::routeDeleteList(const QString &gw, const QStringList &ips)
 
 bool RouterWin::flushDns()
 {
-    QProcess p;
-    p.setProcessChannelMode(QProcess::MergedChannels);
-    QString command = QString("ipconfig /flushdns");
-
-    p.start(command);
-    p.waitForFinished();
-    return true;
-    //qDebug().noquote() << "OUTPUT ipconfig /flushdns: " + p.readAll();
+    wchar_t systemDirectory[MAX_PATH] {};
+    const auto length = GetSystemDirectoryW(systemDirectory, MAX_PATH);
+    if (length == 0 || length >= MAX_PATH) { return false; }
+    QProcess process;
+    // В Qt 6 program и аргументы передаются отдельно; строка с пробелом была именем несуществующего exe.
+    process.start(QString::fromWCharArray(systemDirectory) + QStringLiteral("/ipconfig.exe"), { QStringLiteral("/flushdns") });
+    if (!process.waitForFinished(5000)) {
+        if (process.state() != QProcess::NotRunning) { process.kill(); process.waitForFinished(1000); }
+        return false;
+    }
+    return process.exitStatus() == QProcess::NormalExit && process.exitCode() == 0;
 }
 
 void RouterWin::resetIpStack()
@@ -311,6 +291,7 @@ void RouterWin::resetIpStack()
 
 bool RouterWin::createTun(const QString &dev, const QString &subnet)
 {
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && dev != QStringLiteral(APP_WINDOWS_XRAY_INTERFACE)) { return false; }
     NET_LUID luid;
     DWORD res = ConvertInterfaceAliasToLuid(reinterpret_cast<const wchar_t*>(dev.utf16()), &luid);
     if (res != NO_ERROR) {
@@ -337,7 +318,7 @@ bool RouterWin::createTun(const QString &dev, const QString &subnet)
         if (row != nullptr && row->InterfaceLuid.Value == c->luid.Value && row->Address.si_family == AF_INET) {
             char ip[INET_ADDRSTRLEN];
             inet_ntop(row->Address.Ipv4.sin_family, &row->Address.Ipv4.sin_addr, ip, INET_ADDRSTRLEN);
-            if (c->subnet == ip) {
+            if (c->subnet == ip && row->DadState == IpDadStatePreferred) {
                 c->found = true;
                 SetEvent(c->hEvent);
             }
@@ -371,17 +352,22 @@ bool RouterWin::createTun(const QString &dev, const QString &subnet)
         return false;
     }
 
-    res = WaitForSingleObject(hEvent, 10000);
-    if (res == WAIT_TIMEOUT) {
-        qCritical() << "Timeout of waiting for IP assignment for " << dev << " device";
-        return false;
+    // Повторное использование готового адреса не вызывает уведомление; состояние проверяем явно.
+    for (int attempt = 0; attempt < 200; ++attempt) {
+        if (GetUnicastIpAddressEntry(&row) == NO_ERROR) {
+            if (row.DadState == IpDadStatePreferred) { return true; }
+            if (row.DadState == IpDadStateDuplicate) { return false; }
+        }
+        if (WaitForSingleObject(hEvent, 50) == WAIT_OBJECT_0) { return ctx.found; }
     }
-
-    return ctx.found;
+    qCritical() << "Timeout of waiting for IP assignment for " << dev << " device";
+    return false;
 }
 
 void RouterWin::suspendWcmSvc(bool suspend)
 {
+    // Hop не приостанавливает общесистемную службу при загрузке больших наборов маршрутов.
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) { return; }
     if (suspend == m_suspended) return;
 
     // Solve Windows bug (routes > 1000)
@@ -536,6 +522,11 @@ bool RouterWin::StopRoutingIpv6()
 {
     qDebug() << "RouterWin::StopRoutingIpv6";
 
+#if APP_WINDOWS_SCOPED_IPV6_FILTERS
+    auto *firewall = WindowsFirewall::create(this);
+    return firewall && firewall->setIpv6Blocked(true);
+#else
+
     if (auto loopback = findLoopbackIface(); loopback.isValid()) {
         QFuture<bool> res = QtConcurrent::mappedReduced(kIpv6Subnets, [loopback](const QString &subnet) -> bool {
             int res = QProcess::execute("netsh", { "interface", "ipv6", "add", "route", subnet, QString("interface=%1").arg(loopback.index()), "metric=0", "store=active" });
@@ -550,11 +541,17 @@ bool RouterWin::StopRoutingIpv6()
     }
 
     return false;
+#endif
 }
 
 bool RouterWin::StartRoutingIpv6()
 {
     qDebug() << "RouterWin::StartRoutingIpv6";
+
+#if APP_WINDOWS_SCOPED_IPV6_FILTERS
+    auto *firewall = WindowsFirewall::create(this);
+    return firewall && firewall->setIpv6Blocked(false);
+#else
 
     if (auto loopback = findLoopbackIface(); loopback.isValid()) {
         QFuture<bool> res = QtConcurrent::mappedReduced(kIpv6Subnets, [loopback](const QString &subnet) -> bool {
@@ -564,7 +561,10 @@ bool RouterWin::StartRoutingIpv6()
         [](bool &result, bool success) {
             result = result && success;
         }, true);
+        res.waitForFinished();
+        return res.result();
     }
 
     return false;
+#endif
 }

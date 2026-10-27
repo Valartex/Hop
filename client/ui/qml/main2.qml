@@ -54,14 +54,14 @@ Window  {
     }
 
     visible: !GC.isDesktop()
-    width: GC.screenWidth
-    height: GC.screenHeight
-    minimumWidth: GC.isDesktop() ? 360 : 0
-    minimumHeight: GC.isDesktop() ? 640 : 0
-    maximumWidth: 600
-    maximumHeight: 800
+    width: GC.isDesktop() ? (Qt.application.name === "Hop" ? 1000 : 760) : GC.screenWidth
+    height: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? Math.min(680, Screen.desktopAvailableHeight - 80) : GC.screenHeight
+    minimumWidth: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? 900 : (GC.isDesktop() ? 480 : 0)
+    minimumHeight: (Qt.application.name === "Hop" && Qt.platform.os === "windows") ? 480 : (GC.isDesktop() ? 560 : 0)
+    maximumWidth: GC.isDesktop() ? 16777215 : 600
+    maximumHeight: GC.isDesktop() ? 16777215 : 800
 
-    color: AmneziaStyle.color.midnightBlack
+    color: Qt.application.name === "Hop" && Qt.platform.os === "windows" ? HopStyle.background : AmneziaStyle.color.midnightBlack
 
     onClosing: function(close) {
         close.accepted = false
@@ -73,7 +73,7 @@ Window  {
         console.warn("Scene graph error:", error, message)
     }
 
-    title: "AmneziaVPN"
+    title: Qt.application.name
 
     Item { // This item is needed for focus handling
         id: defaultFocusItem

@@ -1,5 +1,6 @@
 #include <QDebug>
 #include <QTimer>
+#include <QSettings>
 #include <libssh/libssh.h>
 #include <openssl/ssl.h>
 
@@ -8,6 +9,10 @@
 #include "core/utils/migrations.h"
 #include "core/utils/appUiConfig.h"
 #include "version.h"
+#ifdef Q_OS_WIN
+#include "core/locations/providerTask.h"
+#include <cstring>
+#endif
 
 
 // use openssl symbols to prevent linker throwing-off the OpenSSL dependency
@@ -17,6 +22,8 @@ void anchorOpenSSL() {
 
 #ifdef Q_OS_WIN
     #include "Windows.h"
+    #include <shobjidl.h>
+    #pragma comment(lib, "shell32.lib")
 #endif
 
 #if defined(Q_OS_IOS)
@@ -38,10 +45,29 @@ bool isAnotherInstanceRunning()
 
 int main(int argc, char *argv[])
 {
-    Migrations migrationsManager;
-    migrationsManager.doMigrations();
+    bool hopSmoke = false;
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop") && argc == 2 && std::strcmp(argv[1], "--provider-task") == 0) {
+        return hop::runProviderTask(argc, argv);
+    }
+    const bool hopVpnTest = argc == 3 && (std::strcmp(argv[1], "--hop-ui-vpn-test") == 0
+        || std::strcmp(argv[1], "--hop-ui-api-vpn-test") == 0)
+        && QString::fromLocal8Bit(argv[2]).startsWith(QStringLiteral("hop-gui-test-"));
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")
+        && ((argc == 2 && std::strcmp(argv[1], "--hop-ui-smoke-test") == 0) || hopVpnTest)) {
+        const DWORD provider = 0x52534d42, size = GetSystemFirmwareTable(provider, 0, nullptr, 0);
+        if (size < 8 || size > 16 * 1024 * 1024) { return 2; }
+        QByteArray data(size, Qt::Uninitialized);
+        if (GetSystemFirmwareTable(provider, 0, data.data(), size) != size || !data.toLower().contains("virtualbox")) { return 2; }
+        hopSmoke = true;
+    }
+#endif
+    if (!hopSmoke) { Migrations migrationsManager; migrationsManager.doMigrations(); }
 
 #ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        SetCurrentProcessExplicitAppUserModelID(L"Hop.Desktop");
+    }
     AllowSetForegroundWindow(ASFW_ANY);
 #endif
 
@@ -62,11 +88,11 @@ int main(int argc, char *argv[])
     });
 
 #if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS) && !defined(MACOS_NE)
-    if (isAnotherInstanceRunning()) {
+    if (!hopSmoke && isAnotherInstanceRunning()) {
         QTimer::singleShot(1000, &app, [&]() { app.quit(); });
         return app.exec();
     }
-    app.startLocalServer();
+    if (!hopSmoke) { app.startLocalServer(); }
 #endif
 
 // Allow to raise app window if secondary instance launched
@@ -79,6 +105,12 @@ int main(int argc, char *argv[])
     app.setApplicationName(APPLICATION_NAME);
     app.setOrganizationName(ORGANIZATION_NAME);
     app.setApplicationDisplayName(APPLICATION_NAME);
+#ifdef Q_OS_WIN
+    if (QStringLiteral(APPLICATION_NAME) == QStringLiteral("Hop")) {
+        QSettings notificationIdentity(QStringLiteral("HKEY_CURRENT_USER\\Software\\Classes\\AppUserModelId\\Hop.Desktop"), QSettings::NativeFormat);
+        notificationIdentity.setValue(QStringLiteral("DisplayName"), QStringLiteral("Hop"));
+    }
+#endif
 
     app.loadFonts();
 

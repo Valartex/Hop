@@ -1,0 +1,362 @@
+[
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 16,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 20,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 24,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 30,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 32,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 36,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 40,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 48,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 60,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 64,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 72,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 80,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 96,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 128,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-01-rounded.ico",
+    "size": 256,
+    "bpp": 32,
+    "encoding": "PNG",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 16,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 20,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 24,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 30,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 32,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 36,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 40,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 48,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 60,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 64,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 72,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 80,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 96,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 128,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-02-square.ico",
+    "size": 256,
+    "bpp": 32,
+    "encoding": "PNG",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 16,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 20,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 24,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 30,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 32,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 36,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 40,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 48,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 60,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 64,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 72,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 80,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 96,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 128,
+    "bpp": 32,
+    "encoding": "DIB+AND",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  },
+  {
+    "file": "Hop-03-soft.ico",
+    "size": 256,
+    "bpp": 32,
+    "encoding": "PNG",
+    "alpha_roundtrip_error": 0,
+    "win32_load": true
+  }
+]

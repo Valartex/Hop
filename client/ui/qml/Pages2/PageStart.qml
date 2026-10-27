@@ -14,6 +14,13 @@ import "../Components"
 
 PageType {
     id: root
+    readonly property bool desktopHop: Qt.application.name === "Hop" && Qt.platform.os === "windows"
+
+    property int desktopSection: 0
+    function openDesktopPage(section, page) {
+        desktopSection = section
+        tabBarStackView.goToTabBarPage(page)
+    }
 
     property bool isControlsDisabled: false
     property bool isTabBarDisabled: false
@@ -25,17 +32,19 @@ PageType {
         target: PageController
 
         function onGoToPageHome() {
-            if (PageController.isStartPageVisible()) {
+            if (PageController.isStartPageVisible() && !root.desktopHop) {
                 root.isTabBarShown = false
                 tabBarStackView.goToTabBarPage(PageEnum.PageSetupWizardStart)
             } else {
                 root.isTabBarShown = true
+                root.desktopSection = 0
                 tabBar.setCurrentIndex(0)
                 tabBarStackView.goToTabBarPage(PageEnum.PageHome)
             }
         }
 
         function onGoToPageSettings() {
+            if (root.desktopHop) root.desktopSection = 3
             tabBar.setCurrentIndex(2)
             tabBarStackView.goToTabBarPage(PageEnum.PageSettings)
         }
@@ -75,6 +84,8 @@ PageType {
         }
 
         function onGoToPage(page, slide) {
+            if (root.desktopHop && page === PageEnum.PageSettingsSplitTunneling) root.desktopSection = 1
+            else if (root.desktopHop && page === PageEnum.PageHopLocations) root.desktopSection = 2
             var pagePath = PageController.getPagePath(page)
 
             if (slide) {
@@ -267,16 +278,94 @@ PageType {
         }
     }
 
+    Rectangle {
+        id: desktopNavigation
+        objectName: "hopSidebar"
+        visible: root.desktopHop
+        width: visible ? 184 : 0
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.bottom: parent.bottom
+        color: HopStyle.surface
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+            RowLayout {
+                Layout.bottomMargin: 16
+                Image { source: "qrc:/images/hop/logo-preview.png"; sourceSize.width: 32; sourceSize.height: 32; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
+                Label { text: "Hop"; color: HopStyle.text; font.pixelSize: 23; font.weight: Font.DemiBold }
+            }
+            HopButton {
+                objectName: "hopHomeTab"
+                text: qsTr("Подключения")
+                Layout.fillWidth: true
+                checkable: true
+                checked: root.desktopSection === 0
+                enabled: !root.isControlsDisabled && !root.isTabBarDisabled
+                onClicked: PageController.goToPageHome()
+            }
+            HopButton {
+                objectName: "hopRoutesButton"
+                text: qsTr("Маршруты")
+                Layout.fillWidth: true
+                checkable: true
+                checked: root.desktopSection === 1
+                enabled: !root.isControlsDisabled && !root.isTabBarDisabled
+                onClicked: root.openDesktopPage(1, PageEnum.PageSettingsSplitTunneling)
+            }
+            HopButton {
+                objectName: "hopLocationPolicyButton"
+                text: qsTr("Автопереключение")
+                Layout.fillWidth: true
+                checkable: true
+                checked: root.desktopSection === 2
+                enabled: !root.isControlsDisabled && !root.isTabBarDisabled
+                onClicked: root.openDesktopPage(2, PageEnum.PageHopLocations)
+            }
+            HopButton {
+                objectName: "hopSettingsTab"
+                text: qsTr("Настройки")
+                Layout.fillWidth: true
+                checkable: true
+                checked: root.desktopSection === 3
+                enabled: !root.isControlsDisabled && !root.isTabBarDisabled
+                onClicked: PageController.goToPageSettings()
+            }
+            Item { Layout.fillHeight: true }
+            HopButton {
+                text: qsTr("Назад")
+                Layout.fillWidth: true
+                visible: tabBarStackView.depth > 1
+                enabled: !root.isControlsDisabled
+                onClicked: PageController.closePage()
+            }
+            HopButton {
+                objectName: "hopAboutButton"
+                text: qsTr("О Hop")
+                Layout.fillWidth: true
+                checkable: true
+                checked: root.desktopSection === 4
+                enabled: !root.isControlsDisabled && !root.isTabBarDisabled
+                onClicked: root.openDesktopPage(4, PageEnum.PageSettingsAbout)
+            }
+            Label { text: SettingsController.getAppVersion(); color: HopStyle.muted; font.pixelSize: 12; Layout.leftMargin: 10 }
+        }
+    }
+
     StackViewType {
         id: tabBarStackView
         objectName: "tabBarStackView"
 
         anchors.top: parent.top
         anchors.right: parent.right
-        anchors.left: parent.left
+        anchors.left: root.desktopHop ? desktopNavigation.right : parent.left
         anchors.bottom: tabBar.top
 
         enabled: !root.isControlsDisabled
+
+        Binding { target: tabBarStackView; property: "palette"; value: HopStyle.palette; when: root.desktopHop }
+        background: Rectangle { visible: root.desktopHop; color: HopStyle.background }
 
         function goToTabBarPage(page) {
             var pagePath = PageController.getPagePath(page)
@@ -286,7 +375,7 @@ PageType {
 
         Component.onCompleted: {
             var pagePath
-            if (PageController.isStartPageVisible()) {
+            if (PageController.isStartPageVisible() && !root.desktopHop) {
                 root.isTabBarShown = false
                 pagePath = PageController.getPagePath(PageEnum.PageSetupWizardStart)
             } else {
@@ -325,7 +414,7 @@ PageType {
         anchors.left: parent.left
         anchors.bottom: parent.bottom
 
-        visible: root.isTabBarShown
+        visible: !root.desktopHop && root.isTabBarShown
                  && !(tabBarStackView.currentItem && tabBarStackView.currentItem.isTabBarHidden === true)
 
         // Also adjust TabBar position when keyboard appears (Android 14+ workaround)
