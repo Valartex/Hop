@@ -10,7 +10,7 @@ RUNTIME = ROOT / ".tools" / "preview-runtime"
 if RUNTIME.exists():
     sys.path.insert(0, str(RUNTIME))
 os.environ.setdefault("QT_QUICK_BACKEND", "software")
-os.environ.setdefault("QT_QPA_FONTDIR", str(ROOT / "client" / "fonts"))
+os.environ.setdefault("QT_QPA_FONTDIR", str(ROOT / "shared" / "client" / "fonts"))
 
 from PySide6.QtCore import QTimer, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication

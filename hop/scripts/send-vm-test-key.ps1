@@ -19,7 +19,8 @@ try {
     $hopJob = @{ id=[guid]::NewGuid().ToString('N'); kind=$(if ($GuardFault) { 'guard-fault' } else { 'baseline' }) }
     $hopJob | ConvertTo-Json -Compress | Set-Content (Join-Path $hopJobs 'inbox.tmp') -Encoding utf8
     Move-Item -LiteralPath (Join-Path $hopJobs 'inbox.tmp') -Destination $hopInbox
-    $hopUntil = [DateTime]::UtcNow.AddSeconds(40)
+    # Агент сначала копирует комплект. Холодная проверка бинарников Windows может задержать запуск.
+    $hopUntil = [DateTime]::UtcNow.AddSeconds(90)
     $hopPublicPath = Join-Path $hopJobs "$hopNonce-key.json"
     while (-not (Test-Path -LiteralPath $hopPublicPath)) {
         if (Test-Path -LiteralPath (Join-Path $hopJobs ($hopJob.id + '.json'))) {

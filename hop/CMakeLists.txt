@@ -21,11 +21,11 @@ if(HOP_BUILD_QT_TESTS)
     set(CMAKE_AUTOMOC ON)
     find_package(Qt6 6.10 REQUIRED COMPONENTS Core Network Test Concurrent)
     add_library(hop_subscriptions STATIC
-        ../client/core/subscriptions/subscriptionParser.cpp
-        ../client/core/subscriptions/subscriptionFetcher.cpp
-        ../client/core/subscriptions/subscriptionFetcher.h
+        ../shared/client/core/subscriptions/subscriptionParser.cpp
+        ../shared/client/core/subscriptions/subscriptionFetcher.cpp
+        ../shared/client/core/subscriptions/subscriptionFetcher.h
     )
-    target_include_directories(hop_subscriptions PUBLIC ../client)
+    target_include_directories(hop_subscriptions PUBLIC ../shared/client)
     target_link_libraries(hop_subscriptions PUBLIC Qt6::Core Qt6::Network)
     target_compile_features(hop_subscriptions PUBLIC cxx_std_17)
     if(MSVC)
@@ -36,9 +36,9 @@ if(HOP_BUILD_QT_TESTS)
     add_test(NAME HopSubscriptions COMMAND hop_subscription_tests)
     add_executable(hop_subscription_probe tools/subscriptionProbe.cpp)
     target_link_libraries(hop_subscription_probe PRIVATE hop_subscriptions)
-    add_library(hop_geodata STATIC ../client/core/routing/geoData.cpp
-        ../client/core/routing/routeDatasetsController.cpp ../client/core/routing/routeDatasetsController.h)
-    target_include_directories(hop_geodata PUBLIC ../client)
+    add_library(hop_geodata STATIC ../shared/client/core/routing/geoData.cpp
+        ../shared/client/core/routing/routeDatasetsController.cpp ../shared/client/core/routing/routeDatasetsController.h)
+    target_include_directories(hop_geodata PUBLIC ../shared/client)
     target_link_libraries(hop_geodata PUBLIC Qt6::Core Qt6::Network Qt6::Concurrent)
     target_compile_features(hop_geodata PUBLIC cxx_std_17)
     if(MSVC)

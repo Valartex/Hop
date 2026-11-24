@@ -14,7 +14,7 @@ $env:GOTOOLCHAIN = 'local'
 $env:GOMAXPROCS = '4'
 $env:CGO_ENABLED = '1'
 $env:CC = "$hopZig cc -target x86_64-windows-gnu"
-$hopModule = Join-Path $hopRoot 'hop\native\xray'
+$hopModule = Join-Path $hopRoot 'shared\native\xraybindings'
 & $hopGo -C $hopModule test -p 4 ./...
 if ($LASTEXITCODE -ne 0) { throw 'Xray Direct socket tests failed' }
 if ($TestsOnly) { return }

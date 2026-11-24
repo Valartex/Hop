@@ -71,7 +71,8 @@ class Libagw(ConanFile):
         basic_layout(self)
 
     def build_requirements(self):
-        self.tool_requires("go/1.23.12")
+        # Android загружает libagw вместе с другими Go-библиотеками в один процесс.
+        self.tool_requires("go/1.27.1" if self._is_android else "go/1.23.12")
         if self._is_windows:
             self.win_bash = True
             if not self.conf.get("tools.microsoft.bash:path", check_type=str):
@@ -113,9 +114,11 @@ class Libagw(ConanFile):
         env.define("CGO_CFLAGS", " ".join(cflags))
         env.define("CGO_LDFLAGS", " ".join(ldflags))
         go_ldflags = " ".join(filter(None, ["-s -w", goldflags]))
+        # shlex.quote предназначен для POSIX shell; Android на Windows собирается через cmd.
+        quoted_output = f'"{output}"' if str(self.settings_build.os) == "Windows" and not self._is_windows else shlex.quote(output)
         with env.vars(self).apply():
             self.run(f'go build -buildmode={buildmode} -ldflags="{go_ldflags}" '
-                     f'-o {shlex.quote(output)} ./archive')
+                     f'-o {quoted_output} ./archive')
 
     def build(self):
         with chdir(self, self.source_folder):
@@ -138,7 +141,7 @@ class Libagw(ConanFile):
                         self.run(f"dlltool -d {self._def_file} -l {self._import_lib} -D {self._dll}")
                 elif self._is_android:
                     self._go_build(os.path.join(build_dir, self._shared_lib), "c-shared", goarch, cflags, ldflags,
-                                   goldflags=f"-extldflags=-Wl,-soname,{self._shared_lib}")
+                                   goldflags=f"-extldflags=-Wl,-soname,{self._shared_lib},-z,max-page-size=16384")
                 else:
                     self._go_build(os.path.join(build_dir, self._static_lib), "c-archive", goarch, cflags, ldflags)
 

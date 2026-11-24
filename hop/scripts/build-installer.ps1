@@ -9,7 +9,7 @@ $hopWix = Join-Path $hopRoot '.tools\wix\wix.exe'
 $hopUi = Join-Path $hopRoot '.tools\wix\.wix\extensions\WixToolset.UI.wixext\4.0.6\wixext4\WixToolset.UI.wixext.dll'
 if (-not (Test-Path -LiteralPath $hopWix) -or -not (Test-Path -LiteralPath $hopUi)) { throw 'Install the local WiX 4.0.6 CLI and UI extension first' }
 $hopManifest = Get-Content -LiteralPath (Join-Path $hopStage 'BUILD-MANIFEST.json') -Raw | ConvertFrom-Json
-if ($hopManifest.xrayBindings -ne 'hop/native/xray') { throw 'The installer requires Hop policy bindings' }
+if ($hopManifest.xrayBindings -ne 'shared/native/xraybindings') { throw 'The installer requires Hop policy bindings' }
 foreach ($hopProperty in $hopManifest.hashes.PSObject.Properties) {
     if ((Get-FileHash -LiteralPath (Join-Path $hopStage $hopProperty.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $hopProperty.Value) {
         throw "Stage manifest mismatch: $($hopProperty.Name)"

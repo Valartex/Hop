@@ -30,7 +30,7 @@ if ($PolicyCore) {
     $hopPolicyNotices = Join-Path $hopStage 'licenses\hop-xray-bindings'
     New-Item -ItemType Directory -Force -Path $hopPolicyNotices | Out-Null
     foreach ($hopNotice in @('LICENSE', 'ORIGIN.md')) {
-        Copy-Item -LiteralPath (Join-Path $hopRoot "hop\native\xray\$hopNotice") -Destination $hopPolicyNotices -Force
+        Copy-Item -LiteralPath (Join-Path $hopRoot "shared\native\xraybindings\$hopNotice") -Destination $hopPolicyNotices -Force
     }
 }
 if ($VmTests) {
@@ -83,7 +83,7 @@ foreach ($hopBinary in @('Hop.exe', 'Hop-service.exe', 'hop_endpoint_probe.exe',
 $hopManifest = [ordered]@{
     application = 'Hop'; kind = 'development'; createdAtUtc = [DateTime]::UtcNow.ToString('o')
     sourceBase = (& git -C $hopRoot rev-parse HEAD).Trim(); uncommittedChanges = $true
-    qt = '6.10.1'; msvc = '19.44'; xrayBindings = $(if ($PolicyCore) { 'hop/native/xray' } else { 'upstream v1.4.0' }); hashes = $hopHashes
+    qt = '6.10.1'; msvc = '19.44'; xrayBindings = $(if ($PolicyCore) { 'shared/native/xraybindings' } else { 'upstream v1.4.0' }); hashes = $hopHashes
 }
 $hopSourceFingerprint = & (Join-Path $hopRoot '.tools\build-python\Scripts\python.exe') (Join-Path $hopRoot 'hop\packaging\source_fingerprint.py')
 if ($LASTEXITCODE -ne 0) { throw 'Source fingerprint failed' }

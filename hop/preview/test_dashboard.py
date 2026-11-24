@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / ".tools" / "preview-runtime"))
 os.environ.setdefault("QT_QUICK_BACKEND", "software")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("QT_QPA_FONTDIR", str(ROOT / "client" / "fonts"))
+os.environ.setdefault("QT_QPA_FONTDIR", str(ROOT / "shared" / "client" / "fonts"))
 
 from PySide6.QtCore import QMetaObject, QObject, Qt, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication

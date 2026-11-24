@@ -1,0 +1,37 @@
+<RCC>
+  <qresource prefix="/ui/qml/Components">
+    <file alias="MaterialIcon.qml">qml/MaterialIcon.qml</file>
+    <file alias="MaterialSymbols.js">qml/MaterialSymbols.js</file>
+    <file alias="+android/MaterialIcon.qml">qml/MaterialIcon.qml</file>
+    <file alias="+android/MaterialSymbols.js">qml/MaterialSymbols.js</file>
+    <file alias="+android/HopRadioButton.qml">qml/components/HopRadioButton.qml</file>
+    <file alias="+android/HopSearchField.qml">qml/components/HopSearchField.qml</file>
+    <file alias="+android/HopButton.qml">qml/components/HopButton.qml</file>
+    <file alias="+android/HopCheckBox.qml">qml/components/HopCheckBox.qml</file>
+    <file alias="+android/HopComboBox.qml">qml/components/HopComboBox.qml</file>
+    <file alias="+android/HopDialog.qml">qml/components/HopDialog.qml</file>
+    <file alias="+android/HopMenu.qml">qml/components/HopMenu.qml</file>
+    <file alias="+android/HopMenuItem.qml">qml/components/HopMenuItem.qml</file>
+    <file alias="+android/HopScrollBar.qml">qml/components/HopScrollBar.qml</file>
+    <file alias="+android/HopSettingsGroup.qml">qml/components/HopSettingsGroup.qml</file>
+    <file alias="+android/HopSwitch.qml">qml/components/HopSwitch.qml</file>
+    <file alias="+android/HopTextField.qml">qml/components/HopTextField.qml</file>
+    <file alias="HopMobileNavigation.qml">qml/HopMobileNavigation.qml</file>
+  </qresource>
+  <qresource prefix="/ui/qml/Modules/Style">
+    <file alias="+android/HopStyle.qml">qml/Style/HopStyle.qml</file>
+  </qresource>
+  <qresource prefix="/images/hop/material">
+    <file alias="refresh.svg">qml/icons/refresh.svg</file>
+    <file alias="add.svg">qml/icons/add.svg</file>
+    <file alias="arrow_downward.svg">qml/icons/arrow_downward.svg</file>
+    <file alias="arrow_upward.svg">qml/icons/arrow_upward.svg</file>
+    <file alias="close.svg">qml/icons/close.svg</file>
+    <file alias="LICENSE">qml/icons/LICENSE</file>
+    <file alias="more_vert.svg">qml/icons/more_vert.svg</file>
+    <file alias="public.svg">qml/icons/public.svg</file>
+    <file alias="route.svg">qml/icons/route.svg</file>
+    <file alias="settings.svg">qml/icons/settings.svg</file>
+    <file alias="vpn_key.svg">qml/icons/vpn_key.svg</file>
+  </qresource>
+</RCC>

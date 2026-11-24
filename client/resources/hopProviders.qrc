@@ -1,5 +1,0 @@
-<RCC>
-    <qresource prefix="/hop/providers">
-        <file alias="amnezia.json">../../hop/providers/amnezia.json</file>
-    </qresource>
-</RCC>

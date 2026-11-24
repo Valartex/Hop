@@ -2,5 +2,5 @@ deploy/data/windows/x64/tap/windows_7/OemVista.inf eol=crlf
 deploy/data/windows/x64/tap/windows_10/OemVista.inf eol=crlf
 deploy/data/windows/x32/tap/windows_7/OemVista.inf eol=crlf
 deploy/data/windows/x32/tap/windows_10/OemVista.inf eol=crlf
-client/3rd/* linguist-vendored
-client/android/gradlew.bat eol=crlf
+shared/client/3rd/* linguist-vendored
+platforms/android/app/gradlew.bat eol=crlf

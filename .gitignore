@@ -30,36 +30,36 @@ Makefile*
 compile_commands.json
 
 # fastlane
-client/fastlane/report.xml
-client/fastlane/build/*
+shared/client/fastlane/report.xml
+shared/client/fastlane/build/*
 
 # Qt-es
-client/Release-iphoneos/
-client/Debug-iphoneos/
-client/.xcode/
-client/.qmake.cache
-client/.qmake.stash
-client/*.pro.user
-client/*.pro.user.*
-client/*.qbs.user
-client/*.qbs.user.*
-client/*.moc
-client/moc_*.cpp
-client/qrc_*.cpp
-client/ui_*.h
-client/ui_*.cpp
-client/Makefile*
-client/fastlane/build/
-client/*build-*
-client/AmneziaVPN.xcodeproj
-client/Debug-iphonesimulator/
-client/amneziavpn_plugin_import.cpp
-client/amneziavpn_qml_plugin_import.cpp
-client/qmlcache_loader.cpp
-client/rep_ipc_interface_replica.h
-client/resources_qmlcache.qrc
-client/3rd/OpenVPNAdpter/build/
-client/3rd/ShadowSocks/build/
+shared/client/Release-iphoneos/
+shared/client/Debug-iphoneos/
+shared/client/.xcode/
+shared/client/.qmake.cache
+shared/client/.qmake.stash
+shared/client/*.pro.user
+shared/client/*.pro.user.*
+shared/client/*.qbs.user
+shared/client/*.qbs.user.*
+shared/client/*.moc
+shared/client/moc_*.cpp
+shared/client/qrc_*.cpp
+shared/client/ui_*.h
+shared/client/ui_*.cpp
+shared/client/Makefile*
+shared/client/fastlane/build/
+shared/client/*build-*
+shared/client/AmneziaVPN.xcodeproj
+shared/client/Debug-iphonesimulator/
+shared/client/amneziavpn_plugin_import.cpp
+shared/client/amneziavpn_qml_plugin_import.cpp
+shared/client/qmlcache_loader.cpp
+shared/client/rep_ipc_interface_replica.h
+shared/client/resources_qmlcache.qrc
+shared/client/3rd/OpenVPNAdpter/build/
+shared/client/3rd/ShadowSocks/build/
 # QtCreator
 
 *.autosave
@@ -79,7 +79,7 @@ deploy/AmneziaVPN*Installer*
 
 # MACOS files
 .DS_Store
-client/.DS_Store
+shared/client/.DS_Store
 ._.DS_Store
 ._*
 *.dmg
@@ -131,7 +131,7 @@ captures/
 
 # Android Profiling
 *.hprof
-client/3rd/ShadowSocks/ss_ios.xcconfig
+shared/client/3rd/ShadowSocks/ss_ios.xcconfig
 
 # UML generated pics
 out/
@@ -166,3 +166,6 @@ __pycache__/
 *.keystore
 /.env
 /.env.*
+
+# Old build cache created before the platform split.
+/shared/.tools/

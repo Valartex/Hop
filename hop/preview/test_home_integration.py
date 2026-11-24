@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / ".tools" / "preview-runtime"))
 os.environ.setdefault("QT_QUICK_BACKEND", "software")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("QT_QPA_FONTDIR", str(ROOT / "client" / "fonts"))
+os.environ.setdefault("QT_QPA_FONTDIR", str(ROOT / "shared" / "client" / "fonts"))
 
 from PySide6.QtCore import Q_ARG, QMetaObject, Qt, QUrl, qInstallMessageHandler
 from PySide6.QtGui import QGuiApplication
@@ -27,7 +27,7 @@ class HomeIntegrationTests(unittest.TestCase):
         qInstallMessageHandler(lambda kind, context, message: cls.messages.append(message))
         cls.app = QGuiApplication.instance() or QGuiApplication([])
         QQuickStyle.setStyle("Basic")
-        header = (ROOT / "client/ui/utils/pageEnum.h").read_text(encoding="utf-8")
+        header = (ROOT / "shared/client/ui/utils/pageEnum.h").read_text(encoding="utf-8")
         enum_block = re.search(r"enum class PageEnum\s*\{(.*?)\};", header, re.S).group(1)
         enum_names = re.findall(r"\b(Page\w+)\b", enum_block)
         cls.enums = {name: index for index, name in enumerate(enum_names)}
@@ -50,7 +50,7 @@ class HomeIntegrationTests(unittest.TestCase):
     def setUp(self):
         self.messages.clear()
         self.engine = QQmlApplicationEngine()
-        self.engine.addImportPath(str(ROOT / "client/ui/qml/Modules"))
+        self.engine.addImportPath(str(ROOT / "shared/client/ui/qml/Modules"))
         self.mocks = {}
         self.servers = self.create_mock("ServersUiController", '''
             property string defaultServerId: "test-a"

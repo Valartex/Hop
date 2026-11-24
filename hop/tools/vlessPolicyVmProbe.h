@@ -6,6 +6,7 @@
 #include <QUrlQuery>
 #include <QRandomGenerator>
 #include <QTcpSocket>
+#include "cdnRoutingVmProbe.h"
 
 inline bool probeVlessExternalUdpInVm(QTextStream &output)
 {
@@ -48,7 +49,7 @@ inline bool probeVlessExternalUdpInVm(QTextStream &output)
     return verified;
 }
 
-inline int probeVlessPolicyInVm(const QUrl &url, QTextStream &output, bool smbOnly = false)
+inline int probeVlessPolicyInVm(const QUrl &url, QTextStream &output, bool smbOnly = false, bool cdnOnly = false)
 {
     const auto previousLogger = qInstallMessageHandler([](QtMsgType, const QMessageLogContext &, const QString &) {});
     const auto restoreLogger = qScopeGuard([&]() { qInstallMessageHandler(previousLogger); });
@@ -60,6 +61,12 @@ inline int probeVlessPolicyInVm(const QUrl &url, QTextStream &output, bool smbOn
         socket.abort(); return connected;
     };
     if (smbOnly && !smb(QStringLiteral("before VPN"))) { return 7; }
+    HopCdnProbeResult cdnBaseline;
+    if (cdnOnly) {
+        probeCdnDnsInVm(output, false);
+        cdnBaseline = probeCdnImagesInVm(output, QStringLiteral("before VPN"));
+        if (!cdnBaseline.successful) { output << "CDN baseline is unavailable; no Hop attribution" << Qt::endl; return 7; }
+    }
     hop::SubscriptionFetcher fetcher; QEventLoop downloaded; QByteArray body;
     QObject::connect(&fetcher, &hop::SubscriptionFetcher::loaded, &downloaded,
         [&](const QByteArray &bytes, const QByteArray &, const QByteArray &, bool) { body = bytes; downloaded.quit(); });
@@ -71,7 +78,7 @@ inline int probeVlessPolicyInVm(const QUrl &url, QTextStream &output, bool smbOn
     for (const auto &entry : subscription.entries) {
         if (QUrlQuery(QUrl(entry.uri)).queryItemValue("security") != QStringLiteral("reality")) { continue; }
         if (smbOnly) { uri = entry.uri; break; }
-        if (++checked > 3) { break; }
+        if (++checked > (cdnOnly ? 2 : 3)) { break; }
         const auto resolvedEndpoint = QHostAddress(NetworkUtilities::getIPAddress(QUrl(entry.uri).host()));
         output << "VLESS candidate endpoint uses inherited FakeDNS range: "
                << resolvedEndpoint.isInSubnet(QHostAddress("198.18.0.0"), 15) << Qt::endl;
@@ -108,7 +115,17 @@ inline int probeVlessPolicyInVm(const QUrl &url, QTextStream &output, bool smbOn
         QJsonObject { { "kind", "geoip" }, { "value", "RU" }, { "target", "direct" } },
         QJsonObject { { "kind", "geosite" }, { "value", "RU" }, { "target", "block" } }
     };
-    const auto compiled = hop::compileTrafficPolicy(QJsonObject { { "default", "vpn" }, { "rules", rules } }, &ip, &site);
+    auto compiled = hop::compileTrafficPolicy(QJsonObject { { "default", "vpn" }, { "rules", rules } }, &ip, &site);
+    if (cdnOnly) {
+        const auto fixtureRoot = QCoreApplication::applicationDirPath() + QStringLiteral("/cdn-routing-fixture/");
+        QFile policyFile(fixtureRoot + QStringLiteral("policy.json"));
+        if (!policyFile.open(QIODevice::ReadOnly)) { return 7; }
+        const auto data = QJsonDocument::fromJson(policyFile.readAll()).object();
+        const auto geoIp = hop::readGeoDataFile(fixtureRoot + QStringLiteral("geoip.dat"), hop::GeoDataKind::GeoIp);
+        const auto geoSite = hop::readGeoDataFile(fixtureRoot + QStringLiteral("geosite.dat"), hop::GeoDataKind::GeoSite);
+        compiled = hop::compileTrafficPolicy(data.value(QStringLiteral("policy")).toObject(), &geoIp, &geoSite);
+        output << "CDN policy valid=" << compiled.isValid() << " rules=" << compiled.rules.size() << Qt::endl;
+    }
     if (!compiled.isValid()) { return 7; }
     const QJsonObject config {
         { "hostName", QUrl(uri).host() }, { "dns1", "9.9.9.9" }, { "dns2", "8.8.8.8" },
@@ -136,7 +153,53 @@ inline int probeVlessPolicyInVm(const QUrl &url, QTextStream &output, bool smbOn
                 output << label << ": HTTP " << status << ", Qt " << int(failure) << Qt::endl; reply->deleteLater();
                 return status == expected && (expected ? failure == QNetworkReply::NoError : failure != QNetworkReply::NoError);
             };
-            if (smbOnly) { passed = smb(QStringLiteral("with PRIVATE Direct")); }
+            if (cdnOnly) {
+                const auto tunInterface = QNetworkInterface::interfaceFromIndex(NetworkUtilities::AdapterIndexTo(QHostAddress("198.18.0.1")));
+                MIB_IPINTERFACE_ROW mtuRow {}; InitializeIpInterfaceEntry(&mtuRow); mtuRow.Family = AF_INET; mtuRow.InterfaceIndex = tunInterface.index();
+                const int originalMtu = GetIpInterfaceEntry(&mtuRow) == NO_ERROR ? int(mtuRow.NlMtu) : 0;
+                output << "CDN Windows TUN MTU=" << originalMtu << "; tun2socks stack default=1420" << Qt::endl;
+                const bool originalDatagrams = probeCdnDatagramsInVm(output, QStringLiteral("original MTU"));
+                probeCdnDnsInVm(output, true);
+                VmCdnPacketCapture capture;
+                output << "CDN VM packet capture started=" << capture.start() << Qt::endl;
+                const auto tunneled = probeCdnImagesInVm(output, QStringLiteral("TUN Direct"));
+                passed = tunneled.successful && tunneled.hashes == cdnBaseline.hashes;
+                for (int round = 0; round < 4; ++round) {
+                    const auto repeat = probeCdnImagesInVm(output, QStringLiteral("TUN Direct repeat %1").arg(round + 1));
+                    passed &= repeat.successful && repeat.hashes == cdnBaseline.hashes;
+                }
+                const auto http1 = probeCdnImagesInVm(output, QStringLiteral("TUN Direct HTTP1"), QNetworkProxy::NoProxy, false);
+                passed &= http1.successful && http1.hashes == cdnBaseline.hashes;
+                const auto proxied = probeCdnImagesInVm(output, QStringLiteral("SOCKS Direct"), protocol.localProxy());
+                passed &= proxied.successful && proxied.hashes == cdnBaseline.hashes;
+                const auto setGuestMtu = [](int mtu) {
+                    QProcess change;
+                    change.start(QStringLiteral("C:/Windows/System32/netsh.exe"), {"interface", "ipv4", "set", "subinterface", "Hop-TUN", QStringLiteral("mtu=%1").arg(mtu), "store=active"});
+                    return change.waitForFinished(5000) && change.exitStatus() == QProcess::NormalExit && change.exitCode() == 0;
+                };
+                if (originalMtu > 0 && originalMtu != 1420) {
+                    const auto restoreMtu = qScopeGuard([&]() { output << "CDN original guest MTU restored=" << setGuestMtu(originalMtu) << Qt::endl; });
+                    const bool changedMtu = setGuestMtu(1420);
+                    output << "CDN guest MTU aligned=" << changedMtu << Qt::endl;
+                    if (changedMtu) {
+                        probeCdnDatagramsInVm(output, QStringLiteral("MTU1420"));
+                        probeCdnImagesInVm(output, QStringLiteral("TUN MTU1420"));
+                    }
+                }
+                if (originalMtu > 0 && originalMtu != 1420) { probeCdnDatagramsInVm(output, QStringLiteral("restored original MTU")); }
+                if (!passed) {
+                    // Только гостевая диагностика: отличаем отказ WFP от DNS/ядра, затем возвращаем защиту.
+                    const bool disabled = protocol.updateTrafficProtection(false);
+                    const auto withoutGuard = disabled ? probeCdnImagesInVm(output, QStringLiteral("TUN guard diagnostic")) : HopCdnProbeResult();
+                    const bool restored = protocol.updateTrafficProtection(true);
+                    output << "CDN guest guard disabled/restored=" << disabled << "/" << restored
+                           << " loaded=" << (disabled && withoutGuard.successful) << Qt::endl;
+                }
+                output << "CDN VM packet counters=" << capture.counters() << Qt::endl;
+                output << "CDN VM packet capture=" << capture.finish() << Qt::endl;
+                passed &= originalMtu == 1420 && originalDatagrams;
+            }
+            else if (smbOnly) { passed = smb(QStringLiteral("with PRIVATE Direct")); }
             else {
             network.setProxy(protocol.localProxy());
             const bool proxyWorks = request("VLESS service SOCKS IP", QUrl(QStringLiteral("https://%1/generate_204").arg(testIp)), 204, true);

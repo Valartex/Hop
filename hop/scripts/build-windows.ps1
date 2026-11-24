@@ -10,6 +10,7 @@ $hopBuild = Join-Path $hopRoot 'build\windows'
 
 $hopCmake = Join-Path $hopPythonScripts 'cmake.exe'
 $hopArguments = @(
+    '-UCLIENT_QML_QRC_FILE', '-UCLIENT_PAGE_ENUM_HEADER',
     '-S', $hopRoot, '-B', $hopBuild, '-G', 'Ninja',
     '-DCMAKE_BUILD_TYPE=Release', "-DCMAKE_PREFIX_PATH=$hopQt",
     '-DCLIENT_TARGET_NAME=Hop', '-DCLIENT_APPLICATION_NAME=Hop',

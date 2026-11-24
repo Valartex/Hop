@@ -56,12 +56,12 @@ jobs:
       - name: Build Windows and Hop Xray bindings
         shell: pwsh
         run: |
-          & hop/scripts/build-windows.ps1 -Tests -Targets Hop,Hop-service,hop_endpoint_probe,hop_tunnel_probe,hop_guard_recover,test_http_subscriptions,test_location_catalog,test_selection_session,test_hop_dashboard,test_endpoint_health,test_route_datasets,test_traffic_policy,test_xray_lifecycle
+          & hop/scripts/build-windows.ps1 -Tests -Targets Hop,Hop-service,hop_endpoint_probe,hop_tunnel_probe,hop_guard_recover,test_android_material,test_android_routing_adapter,test_location_history,test_http_subscriptions,test_location_catalog,test_selection_session,test_hop_dashboard,test_endpoint_health,test_route_datasets,test_traffic_policy,test_xray_lifecycle,test_windows_network_watcher,test_xray_serialization
       - name: Native tests without system VPN
         shell: pwsh
         run: |
           . hop/scripts/enter-build-env.ps1
-          ctest --test-dir build/windows/client/tests -R Hop --output-on-failure
+          ctest --test-dir build/windows/client/tests -R 'Hop|XraySerializationTest' --output-on-failure
           if ($LASTEXITCODE -ne 0) { throw 'Hop native tests failed' }
       - name: Stage development package
         shell: pwsh

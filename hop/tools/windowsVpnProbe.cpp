@@ -27,7 +27,7 @@
 #include "core/subscriptions/subscriptionParser.h"
 #include "core/utils/serialization/serialization.h"
 #include "windowsScmProbe.h"
-#include "platforms/windows/daemon/windowsTunnelSecrets.h"
+#include "platforms/windows/native/daemon/windowsTunnelSecrets.h"
 #include "extraVmInput.h"
 #include "amneziaVmProbe.h"
 #include "routedPolicyVmProbe.h"
@@ -42,6 +42,7 @@
 #include "controlLeaseVmProbe.h"
 #include "ipcQuotaVmProbe.h"
 #include "routeRecoveryVmProbe.h"
+#include "directUdpLeaseVmProbe.h"
 
 namespace {
 bool isVirtualBoxGuest()
@@ -141,6 +142,8 @@ int main(int argc, char **argv)
         }
         if (extra.endsWith(QStringLiteral("# HopProviderTest"))) { return probeProviderInVm(extra.left(extra.lastIndexOf(QLatin1Char('\n'))).trimmed(), url, output); }
         if (extra.contains(QStringLiteral("# HopControlLeaseTest"))) { return probeControlLeaseInVm(output, serviceProcess); }
+        if (extra.contains(QStringLiteral("# HopDirectUdpLeaseTest"))) { return probeDirectUdpLeaseInVm(extra, output); }
+        if (extra.contains(QStringLiteral("# HopTunUdpLeaseTest"))) { return probeTunUdpLeaseInVm(extra, output); }
         if (extra.contains(QStringLiteral("# HopDatasetTest"))) { return probeDatasetsInVm(output); }
         if (extra.contains(QStringLiteral("# HopAwgEndpointTest"))) { return probeAwgEndpointInVm(extra, output); }
         if (extra.contains(QStringLiteral("# HopBootPrepareTest"))) { return prepareBootGuardInVm(output); }
@@ -192,6 +195,8 @@ int main(int argc, char **argv)
         if (extra.contains(QStringLiteral("# HopInstallerInspect"))) { return probeInstallerInVm(serviceProcess, url, output, QStringLiteral("inspect")); }
         if (extra.contains(QStringLiteral("# HopInstallerTest"))) { return probeInstallerInVm(serviceProcess, url, output); }
         if (extra.contains(QStringLiteral("# HopVlessPolicyTest"))) { return probeVlessPolicyInVm(url, output); }
+        if (extra.contains(QStringLiteral("# HopCdnRoutingTest"))) { return probeVlessPolicyInVm(url, output, false, true); }
+        if (extra.contains(QStringLiteral("# HopCdnNetworkCleanupTest"))) { return inspectCdnNetworkInVm(output); }
         if (extra.contains(QStringLiteral("# HopSmbRoutingTest"))) { return probeVlessPolicyInVm(url, output, true); }
         if (extra.contains(QStringLiteral("# HopRoutedPolicyTest"))) { return probeRoutedPolicyInVm(extra, output); }
         return probeAmneziaInVm(extra, output, serviceProcess);

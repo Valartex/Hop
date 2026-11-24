@@ -13,7 +13,7 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parents[2]
 text = "简体中文"
 for catalog in ["hop_zh.ts", "amneziavpn_zh_CN.ts"]:
-    for translation in ET.parse(root / "client/translations" / catalog).iter("translation"):
+    for translation in ET.parse(root / "shared/client/translations" / catalog).iter("translation"):
         text += "".join(translation.itertext())
 font = TTFont(args.source)
 options = subset.Options()
@@ -30,7 +30,7 @@ for record in list(names.names):
         replacement = {1: "Hop CJK UI", 2: "Regular", 3: "Hop CJK UI Regular 1.0",
                        4: "Hop CJK UI Regular", 6: "HopCJKUI-Regular", 16: "Hop CJK UI", 17: "Regular"}[record.nameID]
         record.string = replacement.encode(record.getEncoding())
-license_text = (root / "client/fonts/hop-cjk-ui-OFL.txt").read_text(encoding="utf-8")
+license_text = (root / "shared/client/fonts/hop-cjk-ui-OFL.txt").read_text(encoding="utf-8")
 names.setName(license_text, 13, 3, 1, 0x409)
 args.destination.parent.mkdir(parents=True, exist_ok=True)
 font.save(args.destination)
