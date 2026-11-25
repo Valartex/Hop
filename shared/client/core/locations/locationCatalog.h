@@ -65,7 +65,6 @@ public:
     Q_INVOKABLE bool setExcluded(const QString &id, bool excluded);
     Q_INVOKABLE bool movePriority(int from, int to);
     Q_INVOKABLE bool removePriority(int row);
-    Q_INVOKABLE bool setCountry(const QString &id, const QString &code);
     Q_INVOKABLE QVariantMap serviceInfo(const QString &locationId) const;
     static QString countryFromLabel(const QString &label);
 signals:
@@ -87,7 +86,6 @@ private:
     QSet<QString> m_excluded;
     QSet<QString> m_restrictedLocations;
     int m_restrictedMode = 0;
-    QHash<QString, QString> m_countries;
     QHash<QString, QString> m_apiCountries;
     QHash<QString, QString> m_serviceNames;
     QVariantMap m_serviceExpansion;

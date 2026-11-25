@@ -92,10 +92,10 @@ private slots:
     {
         SecureQSettings settings("Hop-Pool-Groups", "memory", nullptr, true, false);
         SecureServersRepository servers(&settings); ImportController importer(&servers, nullptr);
-        servers.addServer("a", native(importer, "Amsterdam", "one"), serverConfigUtils::ConfigType::Native);
+        servers.addServer("a", native(importer, QString::fromUtf8("🇳🇱 Amsterdam"), "one"), serverConfigUtils::ConfigType::Native);
         servers.addServer("b", native(importer, "Berlin", "two"), serverConfigUtils::ConfigType::Native);
         hop::LocationCatalog catalog(&servers, &settings);
-        QVERIFY(catalog.setCountry("a", "NL")); QVERIFY(catalog.toggleCountry("NL"));
+        QVERIFY(catalog.toggleCountry("NL"));
         QVERIFY(catalog.toggleMembership("b")); catalog.setMode(hop::LocationCatalog::Automatic);
         const auto original = catalog.priorities();
         QVERIFY(catalog.toggleMembership("a"));
@@ -266,7 +266,7 @@ private slots:
         servers.removeServer("nl2");
         QVERIFY(!restored.candidateIds().contains("nl2"));
     }
-    void countryMetadataIsExplicit()
+    void countryMetadataComesFromProviderAndIgnoresLegacyOverrides()
     {
         QCOMPARE(hop::LocationCatalog::countryFromLabel(QStringLiteral("Amsterdam Germany fastest")), QString());
         QCOMPARE(hop::LocationCatalog::countryFromLabel(QString::fromUtf8("Blanc 🇬🇧 London")), QStringLiteral("GB"));
@@ -274,14 +274,19 @@ private slots:
         SecureServersRepository servers(&settings);
         ImportController importer(&servers, nullptr);
         servers.addServer("unknown", native(importer, "Amsterdam", "one"), serverConfigUtils::ConfigType::Native);
+        servers.addServer("known", native(importer, QString::fromUtf8("🇳🇱 Amsterdam"), "one"), serverConfigUtils::ConfigType::Native);
+        settings.setValue("Conf/hopLocationPolicy", QJsonDocument(QJsonObject{
+            {"version", 1}, {"countries", QJsonObject{{"unknown", "NL"}, {"known", "DE"}}}
+        }).toJson(QJsonDocument::Compact));
         hop::LocationCatalog catalog(&servers, &settings);
         QVERIFY(catalog.entry("unknown")->country.isEmpty());
-        QVERIFY(catalog.setCountry("unknown", "nl"));
-        QCOMPARE(catalog.entry("unknown")->country, QStringLiteral("NL"));
-        QVERIFY(!catalog.setCountry("unknown", "Netherlands"));
+        QCOMPARE(catalog.entry("known")->country, QStringLiteral("NL"));
+        QCOMPARE(catalog.metaObject()->indexOfMethod("setCountry(QString,QString)"), -1);
         QVERIFY(catalog.toggleCountry("NL"));
         catalog.setMode(hop::LocationCatalog::Automatic);
-        QCOMPARE(catalog.candidateIds(), QStringList({ "unknown" }));
+        QCOMPARE(catalog.candidateIds(), QStringList({ "known" }));
+        const auto saved = QJsonDocument::fromJson(settings.value("Conf/hopLocationPolicy").toByteArray()).object();
+        QVERIFY(!saved.contains("countries"));
     }
     void apiLocationsUseProviderIdsAndDoNotIssueConfigurations()
     {

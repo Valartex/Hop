@@ -439,21 +439,6 @@
             <translation>节点池为空。在此添加国家，或在“连接”页面通过节点的“…”菜单添加节点。</translation>
         </message>
         <message>
-            <location line="+6" />
-            <source>Страна выбранной локации:</source>
-            <translation>所选节点的国家：</translation>
-        </message>
-        <message>
-            <location line="+10" />
-            <source>Указать</source>
-            <translation>设置</translation>
-        </message>
-        <message>
-            <location line="+8" />
-            <source>Если в данных сервиса нет страны, её можно указать кодом ISO. Из названий городов страна автоматически не определяется.</source>
-            <translation>如果服务未提供国家信息，您可以指定其 ISO 代码。不会根据城市名称自动识别国家。</translation>
-        </message>
-        <message>
             <source>Добавить страну в пул</source>
             <translation>将国家加入节点池</translation>
         </message>
@@ -464,10 +449,6 @@
         <message>
             <source>Страна в пуле включает её доступные локации из всех подписок. Отдельно добавленные локации сохраняются при удалении страны.</source>
             <translation>节点池中的国家包含所有订阅中该国家的可用节点。移除国家后，单独添加的节点仍会保留。</translation>
-        </message>
-        <message>
-            <source>Код страны нужен для автопула, если провайдер не указал страну локации. Например: NL — Нидерланды, DE — Германия. Если страна уже определена, заполнять поле не нужно.</source>
-            <translation>当服务商未提供节点所在国家时，可填写国家代码以将节点加入按国家划分的节点池。例如：NL — 荷兰，DE — 德国。如果国家已确定，则无需填写。</translation>
         </message>
         <message>
             <source>Страна для автопула</source>

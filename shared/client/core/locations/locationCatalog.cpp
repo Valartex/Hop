@@ -86,10 +86,6 @@ LocationCatalog::LocationCatalog(SecureServersRepository *servers, SecureQSettin
             const auto id = value.toString();
             if (!id.isEmpty() && id.size() <= 512 && m_excluded.size() < 16384) { m_excluded.insert(id); }
         }
-        const auto countries = saved.value(QStringLiteral("countries")).toObject();
-        for (auto it = countries.begin(); it != countries.end() && m_countries.size() < 16384; ++it) {
-            if (it.key().size() <= 512 && !iso(it.value().toString()).isEmpty()) { m_countries.insert(it.key(), iso(it.value().toString())); }
-        }
     }
     connect(servers, &SecureServersRepository::serversBatchChanged, this, &LocationCatalog::rebuild);
     connect(servers, &SecureServersRepository::serverAdded, this, &LocationCatalog::rebuild);
@@ -234,7 +230,7 @@ void LocationCatalog::rebuild()
                 m_entries.append({ locationId, id, id, label + (name.isEmpty() ? QString() : QStringLiteral(" · ") + name),
                     api->serviceProtocol() == QStringLiteral("awg") ? QStringLiteral("AmneziaWG 3.1")
                         : api->serviceProtocol() == QStringLiteral("vless") ? QStringLiteral("VLESS") : api->serviceProtocol(),
-                    m_countries.value(locationId, isoCountry), code, !api->apiConfig.isSubscriptionExpired(), true });
+                    isoCountry, code, !api->apiConfig.isSubscriptionExpired(), true });
             }
         } else if (const auto native = m_servers->nativeConfig(id)) {
             const auto label = native->displayName.isEmpty() ? native->description : native->displayName;
@@ -247,7 +243,7 @@ void LocationCatalog::rebuild()
                 protocolName = QStringLiteral("VLESS / Reality");
             }
             m_entries.append({ id, id, native->subscription.value(QStringLiteral("sourceId")).toString(id), label,
-                protocolName, m_countries.value(id, countryFromLabel(label)), {},
+                protocolName, countryFromLabel(label), {},
                 !native->subscription.value(QStringLiteral("retired")).toBool()
                     && (ContainerUtils::isAwgContainer(native->defaultContainer)
                         || ContainerUtils::defaultProtocol(native->defaultContainer) == Proto::WireGuard
@@ -259,7 +255,7 @@ void LocationCatalog::rebuild()
             if (const auto admin = m_servers->selfHostedAdminConfig(id)) { label = admin->description; container = admin->defaultContainer; }
             else if (const auto user = m_servers->selfHostedUserConfig(id)) { label = user->description; container = user->defaultContainer; }
             else { continue; }
-            m_entries.append({ id, id, id, label, protocolNames.value(container, ContainerUtils::containerToString(container)), m_countries.value(id, countryFromLabel(label)), {},
+            m_entries.append({ id, id, id, label, protocolNames.value(container, ContainerUtils::containerToString(container)), countryFromLabel(label), {},
                 ContainerUtils::isAwgContainer(container) || ContainerUtils::defaultProtocol(container) == Proto::Xray, false });
         }
     }
@@ -286,12 +282,10 @@ void LocationCatalog::save()
     for (const auto &id : m_excluded) { excluded.append(id); }
     QJsonArray restricted;
     for (const auto &id : m_restrictedLocations) { restricted.append(id); }
-    QJsonObject countries;
-    for (auto it = m_countries.cbegin(); it != m_countries.cend(); ++it) { countries.insert(it.key(), it.value()); }
     m_settings->setValue(policyKey, QJsonDocument(QJsonObject { { QStringLiteral("version"), 1 }, { QStringLiteral("mode"), m_mode },
         { QStringLiteral("selected"), m_selected }, { QStringLiteral("priorities"), m_priorities },
         { QStringLiteral("restrictedMode"), m_restrictedMode }, { QStringLiteral("restrictedLocations"), restricted },
-        { QStringLiteral("excluded"), excluded }, { QStringLiteral("countries"), countries } }).toJson(QJsonDocument::Compact));
+        { QStringLiteral("excluded"), excluded } }).toJson(QJsonDocument::Compact));
     emit policyChanged();
 }
 bool LocationCatalog::selectRow(int row) { return row >= 0 && row < m_entries.size() && select(m_entries.at(row).id); }
@@ -370,16 +364,6 @@ bool LocationCatalog::movePriority(int from, int to)
     return true;
 }
 bool LocationCatalog::removePriority(int row) { if (row < 0 || row >= m_priorities.size()) { return false; } m_priorities.removeAt(row); save(); return true; }
-bool LocationCatalog::setCountry(const QString &id, const QString &code)
-{
-    const auto normalized = iso(code);
-    if (!entry(id) || (!code.isEmpty() && normalized.isEmpty()) || m_countries.size() >= 16384) { return false; }
-    if (code.isEmpty()) { m_countries.remove(id); } else { m_countries.insert(id, normalized); }
-    save();
-    rebuild();
-    return true;
-}
-
 QVariantList LocationCatalog::priorities() const
 {
     QVariantList result;

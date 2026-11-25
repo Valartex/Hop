@@ -88,7 +88,6 @@ private slots:
                 QStringLiteral("vless://00000000-0000-4000-8000-000000000001@192.0.2.1:443?security=none&type=tcp#") + id).config;
             config.insert("hopSubscription", QJsonObject{{"sourceId", "demo"}, {"sourceName", "Demo VPN"}});
             core.m_serversRepository->addServer(id, config, serverConfigUtils::ConfigType::Native);
-            QVERIFY(catalog->setCountry(id, id == "Amsterdam" ? "NL" : "DE"));
             QVERIFY(catalog->toggleMembership(id));
         }
         catalog->setMode(hop::LocationCatalog::Automatic);
@@ -392,9 +391,10 @@ ApplicationWindow {
         }
         auto *scroll = window->findChild<QObject *>("narrowPolicyScroll"); QVERIFY(scroll);
         auto *content = scroll->property("contentItem").value<QObject *>(); QVERIFY(content);
-        QVERIFY(content->property("contentHeight").toReal() > content->property("height").toReal());
         const auto capture = qEnvironmentVariable("HOP_TEST_CAPTURE_DIR");
         if (!capture.isEmpty()) { QVERIFY(window->grabWindow().save(QDir(capture).filePath("narrow-policy-360.png"))); }
+        window->setHeight(400);
+        QTRY_VERIFY(content->property("contentHeight").toReal() > content->property("height").toReal());
         QCOMPARE(warnings.count(), 0);
     }
     void narrowDashboardFitsPhoneWidth_data()
@@ -1560,14 +1560,12 @@ ApplicationWindow {
         SecureServersRepository servers(&settings);
         SecureAppSettingsRepository appSettings(&settings);
         ImportController importer(&servers, &appSettings);
-        for (const auto &label : { QStringLiteral("NL test"), QStringLiteral("DE test") }) {
+        for (const auto &label : { QString::fromUtf8("🇳🇱 NL test"), QString::fromUtf8("🇩🇪 DE test") }) {
             const auto result = importer.extractConfigFromData(QStringLiteral("vless://00000000-0000-4000-8000-000000000001@vpn.example:443?security=none&type=tcp#") + label);
             QVERIFY(result.errorCode == ErrorCode::NoError);
             importer.importConfig(result.config);
         }
         hop::LocationCatalog catalog(&servers, &settings);
-        QVERIFY(catalog.setCountry(catalog.entries().at(0).id, QStringLiteral("NL")));
-        QVERIFY(catalog.setCountry(catalog.entries().at(1).id, QStringLiteral("DE")));
         QQmlApplicationEngine engine;
         engine.addImportPath(QStringLiteral("qrc:/ui/qml/Modules/"));
         engine.rootContext()->setContextProperty(QStringLiteral("SyntheticCatalog"), &catalog);
@@ -1593,6 +1591,11 @@ ApplicationWindow {
         auto *mode = root->findChild<QObject *>(QStringLiteral("hopSelectionMode"));
         auto *list = root->findChild<QObject *>(QStringLiteral("hopPriorityList"));
         QVERIFY(country && toggle && mode && list);
+        QVERIFY(!root->findChild<QObject *>(QStringLiteral("hopExplicitLocationCountry")));
+        auto *countryItem = qobject_cast<QQuickItem *>(country); QVERIFY(countryItem);
+        auto *tableItem = qobject_cast<QQuickItem *>(list); QVERIFY(tableItem);
+        QTRY_VERIFY(countryItem->mapToScene(QPointF()).y()
+                    >= tableItem->mapToScene(QPointF(0, tableItem->height())).y());
         QTRY_COMPARE(country->property("count").toInt(), 2);
         QVERIFY(toggle->property("text").toString().contains(QString::fromUtf8("Добавить")));
         QVERIFY(QMetaObject::invokeMethod(toggle, "clicked"));

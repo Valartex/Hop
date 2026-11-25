@@ -439,21 +439,6 @@ or a server configuration</translation>
             <translation>The pool is empty. Add a country here or a location using its “…” menu on the Connections page.</translation>
         </message>
         <message>
-            <location line="+6" />
-            <source>Страна выбранной локации:</source>
-            <translation>Selected location's country:</translation>
-        </message>
-        <message>
-            <location line="+10" />
-            <source>Указать</source>
-            <translation>Set</translation>
-        </message>
-        <message>
-            <location line="+8" />
-            <source>Если в данных сервиса нет страны, её можно указать кодом ISO. Из названий городов страна автоматически не определяется.</source>
-            <translation>If the service does not provide a country, you can specify its ISO code. Countries are not detected from city names automatically.</translation>
-        </message>
-        <message>
             <source>Добавить страну в пул</source>
             <translation>Add country to pool</translation>
         </message>
@@ -464,10 +449,6 @@ or a server configuration</translation>
         <message>
             <source>Страна в пуле включает её доступные локации из всех подписок. Отдельно добавленные локации сохраняются при удалении страны.</source>
             <translation>A country in the pool includes its available locations from all subscriptions. Individually added locations remain when the country is removed.</translation>
-        </message>
-        <message>
-            <source>Код страны нужен для автопула, если провайдер не указал страну локации. Например: NL — Нидерланды, DE — Германия. Если страна уже определена, заполнять поле не нужно.</source>
-            <translation>The country code lets a location join a country pool when its provider has not supplied the country. For example: NL — Netherlands, DE — Germany. Leave this field empty if the country is already known.</translation>
         </message>
         <message>
             <source>Страна для автопула</source>

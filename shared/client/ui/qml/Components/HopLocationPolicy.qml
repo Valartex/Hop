@@ -103,42 +103,6 @@ ColumnLayout {
         color: HopStyle.muted
         font.pixelSize: 12
     }
-    GridLayout {
-        columns: root.width < 400 ? 1 : 2
-        visible: root.usesPool
-        Layout.fillWidth: true
-        Layout.fillHeight: false
-        ColumnLayout {
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            spacing: 6
-            PolicyLabel {
-                text: qsTr("Страна для автопула")
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            HopComboBox {
-                id: country
-                objectName: "hopPoolCountry"
-                Layout.fillWidth: true
-                model: root.catalog ? root.catalog.countries : []
-                textRole: "label"
-                valueRole: "code"
-            }
-        }
-        HopButton {
-            objectName: "hopTogglePoolCountry"
-            Layout.alignment: Qt.AlignBottom
-            Layout.preferredWidth: HopStyle.mobile ? -1 : 200
-            Layout.fillWidth: root.width < 400
-            Layout.minimumWidth: 0
-            text: root.countryInPool ? qsTr("Убрать страну из пула") : qsTr("Добавить страну в пул")
-            enabled: country.count > 0
-            onClicked: root.catalog.toggleCountry(country.currentValue)
-            ToolTip.visible: hovered
-            ToolTip.text: qsTr("Страна в пуле включает её доступные локации из всех подписок. Отдельно добавленные локации сохраняются при удалении страны.")
-        }
-    }
     HopOrderTable {
         id: poolTable
         visible: root.usesPool
@@ -173,46 +137,36 @@ ColumnLayout {
             root.catalog.removePriority(row);
         }
     }
+    GridLayout {
+        columns: root.width < 400 ? 1 : 2
+        visible: root.usesPool
+        Layout.fillWidth: true
+        Layout.fillHeight: false
+        HopComboBox {
+            id: country
+            objectName: "hopPoolCountry"
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            Accessible.name: qsTr("Страна для автопула")
+            model: root.catalog ? root.catalog.countries : []
+            textRole: "label"
+            valueRole: "code"
+        }
+        HopButton {
+            objectName: "hopTogglePoolCountry"
+            Layout.alignment: Qt.AlignBottom
+            Layout.preferredWidth: HopStyle.mobile ? -1 : 200
+            Layout.fillWidth: root.width < 400
+            Layout.minimumWidth: 0
+            text: root.countryInPool ? qsTr("Убрать страну из пула") : qsTr("Добавить страну в пул")
+            enabled: country.count > 0
+            onClicked: root.catalog.toggleCountry(country.currentValue)
+            ToolTip.visible: hovered
+            ToolTip.text: qsTr("Страна в пуле включает её доступные локации из всех подписок. Отдельно добавленные локации сохраняются при удалении страны.")
+        }
+    }
     Item {
         visible: !root.usesPool
         Layout.fillHeight: true
-    }
-    ColumnLayout {
-        Layout.fillWidth: true
-        Layout.fillHeight: false
-        spacing: 6
-        PolicyLabel {
-            text: qsTr("Страна выбранной локации:")
-            Layout.fillWidth: true
-            wrapMode: Text.WordWrap
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            HopTextField {
-                id: explicitCountry
-                objectName: "hopExplicitLocationCountry"
-                maximumLength: 2
-                placeholderText: "NL"
-                Layout.preferredWidth: 64
-                Layout.maximumWidth: 64
-                validator: RegularExpressionValidator {
-                    regularExpression: /[A-Za-z]{0,2}/
-                }
-            }
-            HopButton {
-                text: qsTr("Указать")
-                enabled: root.catalog && root.catalog.selectedId.length > 0 && explicitCountry.text.length === 2
-                onClicked: root.catalog.setCountry(root.catalog.selectedId, explicitCountry.text)
-            }
-            Item {
-                Layout.fillWidth: true
-            }
-        }
-    }
-    PolicyLabel {
-        Layout.fillWidth: true
-        wrapMode: Text.WordWrap
-        text: qsTr("Код страны нужен для автопула, если провайдер не указал страну локации. Например: NL — Нидерланды, DE — Германия. Если страна уже определена, заполнять поле не нужно.")
-        font.pixelSize: 12
     }
 }
