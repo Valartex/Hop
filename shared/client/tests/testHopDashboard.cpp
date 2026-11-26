@@ -889,7 +889,7 @@ ApplicationWindow {
             QVERIFY(titleFound);
             QCOMPARE(language->property("height").toInt(), 36);
             QTest::qWait(100);
-            for (const auto &name : {"hopApplicationLanguage", "hopSubscriptionInterval", "hopHealthInterval", "hopHealthScope"}) {
+            for (const auto &name : {"hopApplicationLanguage", "hopSubscriptionInterval", "hopHealthInterval"}) {
                 auto *combo = findVisualItem(window->contentItem(), QString::fromLatin1(name)); QVERIFY(combo);
                 QTRY_COMPARE(combo->width(), 230.0);
                 QCOMPARE(combo->mapToScene(QPointF()).x(),
@@ -1090,15 +1090,21 @@ ApplicationWindow {
         QVERIFY(QMetaObject::invokeMethod(health, "activated", Q_ARG(int, 2)));
         QCOMPARE(preferences->healthMinutes(), 5);
         QCOMPARE(settings.value("Conf/hopHealthMinutes").toInt(), 5);
-        auto *scope = visual("hopHealthScope"); QVERIFY(scope);
-        scope->setProperty("currentIndex", 2);
-        QVERIFY(QMetaObject::invokeMethod(scope, "activated", Q_ARG(int, 2)));
-        QCOMPARE(preferences->healthScope(), 2);
+        QVERIFY(!visual("hopHealthScope"));
+        auto *collection = visual("hopCollectLatencyStatistics"); QVERIFY(collection);
+        QVERIFY(preferences->collectLatencyStatistics());
+        auto *diagnostics = visual("hopDiagnosticsSettingsGroup"); QVERIFY(diagnostics);
+        QVERIFY(diagnostics->isAncestorOf(collection));
+        QCOMPARE(collection->property("text").toString(), QString::fromUtf8("Собирать статистику по времени ответа локаций"));
+        collection->setProperty("checked", false);
+        QVERIFY(QMetaObject::invokeMethod(collection, "clicked"));
+        QVERIFY(!preferences->collectLatencyStatistics());
+        QCOMPARE(settings.value("Conf/hopCollectLatencyStatistics").toBool(), false);
         preferences->setLatencySeconds(90); preferences->setLatencyThreshold(500);
         hop::RefreshPreferences restored(&settings, core.findChild<hop::HttpSubscriptionsController *>(),
             core.findChild<hop::LocationCoordinator *>(), core.findChild<hop::EndpointHealthController *>());
         QCOMPARE(restored.subscriptionMinutes(), 60); QCOMPARE(restored.healthMinutes(), 5);
-        QCOMPARE(restored.healthScope(), 2); QCOMPARE(restored.latencySeconds(), 90); QCOMPARE(restored.latencyThreshold(), 500);
+        QVERIFY(!restored.collectLatencyStatistics()); QCOMPARE(restored.latencySeconds(), 90); QCOMPARE(restored.latencyThreshold(), 500);
         capture("sidebar-settings");
         QVERIFY(click("hopHomeTab")); QTRY_VERIFY(visual("hopLocationSearch"));
         capture("sidebar-connections");

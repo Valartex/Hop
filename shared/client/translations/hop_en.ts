@@ -1224,31 +1224,6 @@ Run a check or enable status updates in settings.</translation>
             <translation>Every 10 minutes</translation>
         </message>
         <message>
-            <location line="+9" />
-            <source>Собирать статистику</source>
-            <translation>Collect statistics</translation>
-        </message>
-        <message>
-            <location line="+4" />
-            <source>Все локации</source>
-            <translation>All locations</translation>
-        </message>
-        <message>
-            <location line="+0" />
-            <source>Локации в пуле</source>
-            <translation>Locations in the pool</translation>
-        </message>
-        <message>
-            <location line="+0" />
-            <source>Активная локация</source>
-            <translation>Active location</translation>
-        </message>
-        <message>
-            <location line="+0" />
-            <source>Отключено</source>
-            <translation>Disabled</translation>
-        </message>
-        <message>
             <location line="+6" />
             <source>Область сбора определяет фоновые проверки и запись истории. При отключении история сохраняется, но новые замеры в неё не записываются. Контроль активного туннеля для автопереключения и его текущая задержка работают отдельно. AmneziaWG вне активного туннеля проверяется при отключённом VPN; новые конфигурации ради замеров не выдаются.</source>
             <translation>The scope controls background checks and history recording. When disabled, existing history is kept but no new samples are recorded. Active tunnel monitoring for auto-switching and its current latency work independently. AmneziaWG outside the active tunnel is checked with the VPN disconnected; checks never request new configurations.</translation>
@@ -1310,10 +1285,13 @@ Run a check or enable status updates in settings.</translation>
             <source>Постоянная VPN и «Блокировать соединения без VPN» настраиваются в Android. Если включить блокировку, при остановке VPN Интернет будет недоступен всем приложениям, включая прямые исключения.</source>
             <translation>Always-on VPN and “Block connections without VPN” are configured in Android. With blocking enabled, stopping the VPN blocks Internet access for all apps, including direct exceptions.</translation>
         </message>
-            <message><source>AmneziaWG вне текущего туннеля проверяется при отключённом VPN. Для замеров используются сохранённые конфигурации.</source><translation>AmneziaWG locations outside the active tunnel are checked while the VPN is disconnected. Saved configurations are used for these checks.</translation></message>
             <message><source>Отметьте профили обхода в меню локации. Автоматический режим попробует их после обычных локаций из пула.</source><translation>Mark bypass profiles in the location menu. Automatic mode tries them after regular locations in the pool.</translation></message>
             <message><source>Системная блокировка отключает интернет при остановке VPN, включая прямые маршруты.</source><translation>System blocking disables internet access when the VPN stops, including direct routes.</translation></message>
             <message><source>Сохранять журналы</source><translation>Save logs</translation></message>
+        <message>
+            <source>Собирать статистику по времени ответа локаций</source>
+            <translation>Collect response-time statistics for locations</translation>
+        </message>
     </context>
     <context>
         <name>PageSettingsHopRoutes</name>

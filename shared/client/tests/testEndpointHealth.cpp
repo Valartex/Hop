@@ -86,9 +86,9 @@ private slots:
         QCOMPARE(changed.count(), 0);
     }
 
-    void scheduledCollectionTracksPoolAndDisabledScope()
+    void collectionToggleDoesNotDisableScheduledStatusChecks()
     {
-        SecureQSettings settings("Hop-Scheduled-Scope", "memory", nullptr, true, false);
+        SecureQSettings settings("Hop-Latency-Statistics", "memory", nullptr, true, false);
         SecureServersRepository servers(&settings); SecureAppSettingsRepository app(&settings);
         ImportController importer(&servers, &app);
         QVERIFY(servers.applyNativeSubscriptionSnapshot("test", {{"a", config(importer, true)}, {"b", config(importer, true)}}));
@@ -98,25 +98,85 @@ private slots:
         hop::LocationCoordinator session(&catalog, &servers, &app, &connection, &vpn, nullptr, "hop-missing-test-helper.exe", helper());
         hop::EndpointHealthController health(&servers, nullptr, helper());
         hop::RefreshPreferences preferences(&settings, &http, &session, &health);
-        preferences.setSubscriptionMinutes(0); preferences.setHealthMinutes(1); preferences.setHealthScope(1);
-        catalog.toggleLocation("a");
+        preferences.setSubscriptionMinutes(0); preferences.setHealthMinutes(1);
         auto *timer = health.findChild<QTimer *>("hopHealthRefreshTimer"); QVERIFY(timer);
         QVERIFY(QMetaObject::invokeMethod(timer, "timeout")); QTRY_VERIFY(!health.isBusy());
+        QCOMPARE(health.statuses().value("a").toMap().value("latencyMs").toInt(), 42);
+        QCOMPARE(health.statuses().value("b").toMap().value("latencyMs").toInt(), 42);
         QCOMPARE(health.history("a").value("count").toInt(), 1);
-        QVERIFY(!health.statuses().contains("b"));
-        catalog.toggleLocation("a"); catalog.toggleLocation("b");
+        QCOMPARE(health.history("b").value("count").toInt(), 1);
+        preferences.setCollectLatencyStatistics(false);
+        QVERIFY(timer->isActive()); QCOMPARE(timer->interval(), 60000);
         QVERIFY(QMetaObject::invokeMethod(timer, "timeout")); QTRY_VERIFY(!health.isBusy());
         QCOMPARE(health.history("a").value("count").toInt(), 1);
         QCOMPARE(health.history("b").value("count").toInt(), 1);
-        preferences.setHealthScope(3); QVERIFY(!timer->isActive());
-        health.recordSample("b", 1); QCOMPARE(health.history("b").value("count").toInt(), 1);
-        preferences.setHealthScope(2);
-        QVERIFY(QMetaObject::invokeMethod(timer, "timeout")); QVERIFY(!health.isBusy());
+        preferences.setHealthMinutes(0); QVERIFY(!timer->isActive());
+        preferences.setCollectLatencyStatistics(true); QVERIFY(!timer->isActive());
+        QVERIFY(!health.isBusy());
+    }
+    void collectionRecordsManualAndConnectedSamplesAndPreservesHistory()
+    {
+        SecureQSettings settings("Hop-Latency-Statistics", "memory", nullptr, true, false);
+        SecureServersRepository servers(&settings); SecureAppSettingsRepository app(&settings);
+        ImportController importer(&servers, &app);
+        QVERIFY(servers.applyNativeSubscriptionSnapshot("test", {{"a", config(importer, true)}, {"b", config(importer, true)}}));
+        VpnConnection vpn(nullptr, nullptr); ConnectionController connection(&servers, &app, &vpn);
+        hop::HttpSubscriptionsController http(&servers, &importer, &connection, nullptr, "hop-missing-test-helper.exe");
+        hop::LocationCatalog catalog(&servers, &settings);
+        hop::LocationCoordinator session(&catalog, &servers, &app, &connection, &vpn, nullptr, "hop-missing-test-helper.exe", helper());
+        hop::EndpointHealthController health(&servers, nullptr, helper());
+        // Машина состояний работает без исполнителей: системный VPN в тесте не запускается.
+        QObject::disconnect(&session, &hop::SelectionSession::attemptRequested, &session, nullptr);
+        QObject::disconnect(&session, &hop::SelectionSession::healthRequested, &session, nullptr);
+        QObject::disconnect(&session, &hop::SelectionSession::disconnectRequested, &session, nullptr);
+        QObject::disconnect(&session, &hop::SelectionSession::suspendRequested, &session, nullptr);
+        QObject::connect(&session, &hop::LocationCoordinator::locationSampled, &health, &hop::EndpointHealthController::recordSample);
+        hop::RefreshPreferences preferences(&settings, &http, &session, &health);
+        preferences.setSubscriptionMinutes(0);
+        QVERIFY(health.checkLocation("a")); QTRY_VERIFY(!health.isBusy());
+        QVERIFY(health.checkLocation("b")); QTRY_VERIFY(!health.isBusy());
+        QCOMPARE(health.history("a").value("count").toInt(), 1);
         QCOMPARE(health.history("b").value("count").toInt(), 1);
-        preferences.setHealthScope(0);
-        QVERIFY(QMetaObject::invokeMethod(timer, "timeout")); QTRY_VERIFY(!health.isBusy());
+        QVERIFY(catalog.select("a")); session.start(); session.transportConnected(session.token());
+        session.locationSampled("a", 100);
         QCOMPARE(health.history("a").value("count").toInt(), 2);
+        preferences.setCollectLatencyStatistics(false);
+        session.locationSampled("a", 130);
+        QVERIFY(health.checkLocation("b")); QTRY_VERIFY(!health.isBusy());
+        QCOMPARE(health.statuses().value("b").toMap().value("latencyMs").toInt(), 42);
+        QCOMPARE(health.history("a").value("count").toInt(), 2);
+        QCOMPARE(health.history("b").value("count").toInt(), 1);
+        session.healthResult(session.token(), true, true, true, 130);
+        QCOMPARE(session.state(), hop::SelectionSession::Healthy);
+        preferences.setCollectLatencyStatistics(true);
+        QVERIFY(!health.isBusy());
+        session.locationSampled("a", 140);
+        QCOMPARE(health.history("a").value("count").toInt(), 3);
+        session.stop();
+        QVERIFY(health.checkLocation("b")); QTRY_VERIFY(!health.isBusy());
         QCOMPARE(health.history("b").value("count").toInt(), 2);
+        QCOMPARE(health.history("a").value("count").toInt(), 3);
+    }
+    void collectionPreferenceKeepsLegacyDisabledAndPersistsBoolean()
+    {
+        for (int legacyScope : {0, 1, 2, 3}) {
+            SecureQSettings settings("Hop-Active-Statistics", "memory", nullptr, true, false);
+            SecureServersRepository servers(&settings); SecureAppSettingsRepository app(&settings);
+            ImportController importer(&servers, &app);
+            QVERIFY(servers.applyNativeSubscriptionSnapshot("test", {{"a", config(importer, true)}, {"b", config(importer, true)}}));
+            VpnConnection vpn(nullptr, nullptr); ConnectionController connection(&servers, &app, &vpn);
+            hop::HttpSubscriptionsController http(&servers, &importer, &connection, nullptr, "hop-missing-test-helper.exe");
+            hop::LocationCatalog catalog(&servers, &settings);
+            hop::LocationCoordinator session(&catalog, &servers, &app, &connection, &vpn, nullptr, "hop-missing-test-helper.exe", helper());
+            hop::EndpointHealthController health(&servers, nullptr, helper());
+            settings.setValue("Conf/hopHealthScope", legacyScope);
+            hop::RefreshPreferences preferences(&settings, &http, &session, &health);
+            QCOMPARE(preferences.collectLatencyStatistics(), legacyScope != 3);
+            const bool changed = !preferences.collectLatencyStatistics();
+            preferences.setCollectLatencyStatistics(changed);
+            hop::RefreshPreferences restored(&settings, &http, &session, &health);
+            QCOMPARE(restored.collectLatencyStatistics(), changed);
+        }
     }
     void historyScopeFiltersStorageButKeepsLiveResults()
     {

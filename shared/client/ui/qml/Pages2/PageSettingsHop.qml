@@ -159,24 +159,6 @@ PageType {
                             onActivated: if (root.preferences) root.preferences.healthMinutes = currentValue
                         }
                     }
-                    GridLayout {
-                    columns: 1
-                        Layout.fillWidth: true
-                        Label { text: qsTr("Собирать статистику"); Layout.fillWidth: true; color: HopStyle.text }
-                        HopComboBox {
-                            objectName: "hopHealthScope"
-                            Layout.preferredWidth: root.width < 600 ? -1 : root.settingsComboWidth
-                            Layout.fillWidth: root.width < 600
-                            Layout.minimumWidth: 0
-                            model: [qsTr("Все локации"), qsTr("Локации в пуле"), qsTr("Активная локация"), qsTr("Отключено")]
-                            currentIndex: root.preferences ? root.preferences.healthScope : 0
-                            onActivated: if (root.preferences) root.preferences.healthScope = currentIndex
-                        }
-                    }
-                    Label {
-                        text: qsTr("AmneziaWG вне текущего туннеля проверяется при отключённом VPN. Для замеров используются сохранённые конфигурации.")
-                        Layout.fillWidth: true; wrapMode: Text.WordWrap; color: HopStyle.muted
-                    }
                 }
             }
             HopSettingsGroup {
@@ -193,11 +175,28 @@ PageType {
                 objectName: "hopDiagnosticsSettingsGroup"
                 title: qsTr("Диагностика")
                 Layout.fillWidth: true
-                HopCheckBox {
-                    Layout.fillWidth: true
-                    text: qsTr("Сохранять журналы")
-                    checked: SettingsController.isLoggingEnabled
-                    onToggled: SettingsController.toggleLogging(checked)
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 4
+                    HopCheckBox {
+                        Layout.fillWidth: true
+                        text: qsTr("Сохранять журналы")
+                        checked: SettingsController.isLoggingEnabled
+                        onToggled: SettingsController.toggleLogging(checked)
+                    }
+                    HopCheckBox {
+                        objectName: "hopCollectLatencyStatistics"
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Собирать статистику по времени ответа локаций")
+                        checked: root.preferences ? root.preferences.collectLatencyStatistics : false
+                        enabled: root.preferences !== null
+                        onClicked: {
+                            root.preferences.collectLatencyStatistics = checked
+                            checked = Qt.binding(function() { return root.preferences.collectLatencyStatistics })
+                        }
+                    }
                 }
             }
             HopSettingsGroup {

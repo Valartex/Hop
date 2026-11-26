@@ -5,9 +5,10 @@ import Style 1.0
 
 CheckBox {
     id: control
+    property alias wrapMode: caption.wrapMode
     implicitHeight: Math.max(HopStyle.controlHeight, contentItem.implicitHeight + topPadding + bottomPadding)
     Layout.minimumHeight: HopStyle.controlHeight
-    Layout.maximumHeight: Qt.platform.os === "android" ? Infinity : HopStyle.controlHeight
+    Layout.maximumHeight: wrapMode !== Text.NoWrap ? Infinity : HopStyle.controlHeight
     indicator: Rectangle {
         implicitWidth: 16
         implicitHeight: 16
@@ -35,6 +36,7 @@ CheckBox {
         }
     }
     contentItem: Label {
+        id: caption
         text: control.text
         font: control.font
         color: control.enabled ? HopStyle.text : HopStyle.muted

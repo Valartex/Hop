@@ -10,7 +10,7 @@ class RefreshPreferences : public QObject {
     Q_OBJECT
     Q_PROPERTY(int subscriptionMinutes READ subscriptionMinutes WRITE setSubscriptionMinutes NOTIFY changed)
     Q_PROPERTY(int healthMinutes READ healthMinutes WRITE setHealthMinutes NOTIFY changed)
-    Q_PROPERTY(int healthScope READ healthScope WRITE setHealthScope NOTIFY changed)
+    Q_PROPERTY(bool collectLatencyStatistics READ collectLatencyStatistics WRITE setCollectLatencyStatistics NOTIFY changed)
     Q_PROPERTY(int latencySeconds READ latencySeconds WRITE setLatencySeconds NOTIFY changed)
     Q_PROPERTY(int latencyThreshold READ latencyThreshold WRITE setLatencyThreshold NOTIFY changed)
 public:
@@ -19,16 +19,15 @@ public:
         : QObject(parent), m_settings(settings), m_http(http), m_api(api), m_health(health) {
         m_subscription = normalize(settings->value("Conf/hopSubscriptionMinutes", 360).toInt(), true);
         m_healthMinutes = normalize(settings->value("Conf/hopHealthMinutes", 0).toInt(), false);
-        m_scope = qBound(0, settings->value("Conf/hopHealthScope", 0).toInt(), 3);
+        m_collectLatencyStatistics = settings->value("Conf/hopCollectLatencyStatistics",
+            settings->value("Conf/hopHealthScope", 0).toInt() != 3).toBool();
         m_latencySeconds = qBound(15, settings->value("Conf/hopLatencySeconds", 60).toInt(), 3600);
         m_latencyThreshold = qBound(1, settings->value("Conf/hopLatencyThreshold", 1500).toInt(), 10000);
-        connect(api, &SelectionSession::changed, this, &RefreshPreferences::updateSelection);
-        connect(api->catalog(), &LocationCatalog::catalogChanged, this, &RefreshPreferences::updateSelection);
-        connect(api->catalog(), &LocationCatalog::policyChanged, this, &RefreshPreferences::updateSelection);
         connect(health, &EndpointHealthController::scheduledCheckRequested, this, [this]() {
-            updateSelection();
-            if (m_scope == 3) { return; }
-            auto ids = selectedIds().values();
+            QStringList ids;
+            for (const auto &location : m_api->catalog()->entries()) {
+                if (location.enabled) { ids.append(location.id); }
+            }
             if (m_api->running()) {
                 if (ids.removeAll(m_api->activeId())) { m_api->checkCurrentLocation(m_api->activeId()); }
             }
@@ -38,7 +37,7 @@ public:
     }
     int subscriptionMinutes() const { return m_subscription; }
     int healthMinutes() const { return m_healthMinutes; }
-    int healthScope() const { return m_scope; }
+    bool collectLatencyStatistics() const { return m_collectLatencyStatistics; }
     int latencySeconds() const { return m_latencySeconds; }
     int latencyThreshold() const { return m_latencyThreshold; }
     void setLatencySeconds(int value) {
@@ -49,9 +48,9 @@ public:
         if (value < 1 || value > 10000 || value == m_latencyThreshold || !m_settings->setValueChecked("Conf/hopLatencyThreshold", value)) { return; }
         m_latencyThreshold = value; applyLatency(); emit changed();
     }
-    void setHealthScope(int value) {
-        if (value < 0 || value > 3 || value == m_scope || !m_settings->setValueChecked("Conf/hopHealthScope", value)) { return; }
-        m_scope = value; apply(); emit changed();
+    void setCollectLatencyStatistics(bool value) {
+        if (value == m_collectLatencyStatistics || !m_settings->setValueChecked("Conf/hopCollectLatencyStatistics", value)) { return; }
+        m_collectLatencyStatistics = value; applyCollection(); emit changed();
     }
     void setSubscriptionMinutes(int value) {
         value = normalize(value, true);
@@ -73,34 +72,18 @@ private:
     void apply() {
         m_http->setRefreshIntervalMinutes(m_subscription);
         m_api->setRefreshIntervalMinutes(m_subscription);
-        m_health->setRefreshIntervalMinutes(m_scope == 3 ? 0 : m_healthMinutes);
-        updateSelection();
+        m_health->setRefreshIntervalMinutes(m_healthMinutes);
+        applyCollection();
         applyLatency();
     }
     void applyLatency() { m_api->setLatencyPolicy(m_latencySeconds * 1000, m_latencyThreshold); }
-    QSet<QString> selectedIds() const {
-        QSet<QString> result;
-        if (m_scope == 3) { return result; }
-        if (m_scope == 2) {
-            if (m_api->running() && !m_api->activeId().isEmpty()) { result.insert(m_api->activeId()); }
-            return result;
-        }
-        const auto marks = m_api->catalog()->marks();
-        const auto candidates = m_api->catalog()->candidateIds();
-        for (auto it = marks.cbegin(); it != marks.cend(); ++it) {
-            const auto mark = it.value().toMap();
-            if (m_scope == 0 || (m_api->catalog()->allLocations() ? candidates.contains(it.key())
-                : mark.value("priority").toInt() > 0 && !mark.value("excluded").toBool())) { result.insert(it.key()); }
-        }
-        return result;
-    }
-    void updateSelection() { m_health->setHistorySelection(selectedIds(), m_scope == 0); }
+    void applyCollection() { m_health->setHistorySelection({}, m_collectLatencyStatistics); }
     SecureQSettings *m_settings;
     HttpSubscriptionsController *m_http;
     LocationCoordinator *m_api;
     EndpointHealthController *m_health;
     int m_subscription = 360, m_healthMinutes = 0;
-    int m_scope = 0;
+    bool m_collectLatencyStatistics = true;
     int m_latencySeconds = 60, m_latencyThreshold = 1500;
 };
 }

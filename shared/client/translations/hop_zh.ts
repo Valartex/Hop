@@ -1224,31 +1224,6 @@
             <translation>每 10 分钟</translation>
         </message>
         <message>
-            <location line="+9" />
-            <source>Собирать статистику</source>
-            <translation>收集统计数据</translation>
-        </message>
-        <message>
-            <location line="+4" />
-            <source>Все локации</source>
-            <translation>所有节点</translation>
-        </message>
-        <message>
-            <location line="+0" />
-            <source>Локации в пуле</source>
-            <translation>池中的节点</translation>
-        </message>
-        <message>
-            <location line="+0" />
-            <source>Активная локация</source>
-            <translation>当前节点</translation>
-        </message>
-        <message>
-            <location line="+0" />
-            <source>Отключено</source>
-            <translation>已关闭</translation>
-        </message>
-        <message>
             <location line="+6" />
             <source>Область сбора определяет фоновые проверки и запись истории. При отключении история сохраняется, но новые замеры в неё не записываются. Контроль активного туннеля для автопереключения и его текущая задержка работают отдельно. AmneziaWG вне активного туннеля проверяется при отключённом VPN; новые конфигурации ради замеров не выдаются.</source>
             <translation>此范围决定后台检查和历史记录的收集。关闭后会保留现有历史记录，但不会记录新测量。自动切换所需的当前隧道监控及延迟测量独立运行。非当前隧道的 AmneziaWG 检查在 VPN 断开时进行；检查不会请求新配置。</translation>
@@ -1310,10 +1285,13 @@
             <source>Постоянная VPN и «Блокировать соединения без VPN» настраиваются в Android. Если включить блокировку, при остановке VPN Интернет будет недоступен всем приложениям, включая прямые исключения.</source>
             <translation>始终开启的 VPN 和“阻止未使用 VPN 的连接”在 Android 系统中设置。启用阻止后，VPN 停止时所有应用都将无法访问互联网，包括直连例外。</translation>
         </message>
-            <message><source>AmneziaWG вне текущего туннеля проверяется при отключённом VPN. Для замеров используются сохранённые конфигурации.</source><translation>当前隧道以外的 AmneziaWG 节点会在 VPN 断开时接受检查。检查使用已保存的配置。</translation></message>
             <message><source>Отметьте профили обхода в меню локации. Автоматический режим попробует их после обычных локаций из пула.</source><translation>请在节点菜单中标记绕过白名单限制的配置。自动模式会先尝试节点池中的普通节点，再尝试这些配置。</translation></message>
             <message><source>Системная блокировка отключает интернет при остановке VPN, включая прямые маршруты.</source><translation>VPN 停止时，系统阻止功能会禁用互联网访问，包括直连路由。</translation></message>
             <message><source>Сохранять журналы</source><translation>保存日志</translation></message>
+        <message>
+            <source>Собирать статистику по времени ответа локаций</source>
+            <translation>收集位置响应时间统计数据</translation>
+        </message>
     </context>
     <context>
         <name>PageSettingsHopRoutes</name>
