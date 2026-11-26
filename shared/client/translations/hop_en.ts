@@ -464,6 +464,14 @@ or a server configuration</translation>
             <message><source>При длительном превышении порога Hop обновит подписку и проверит локацию снова. Отсутствие ответа тоже считается превышением.</source><translation>If latency stays above the threshold, Hop updates the subscription and checks the locations again. No response also counts as exceeding the threshold.</translation></message>
             <message><source>При потере связи Hop повторяет подключение к выбранной локации.</source><translation>If the connection is lost, Hop reconnects to the selected location.</translation></message>
         <message><source>Приоритет</source><translation>Priority</translation></message>
+        <message>
+            <source>Длительность задержки, с</source>
+            <translation>Delay duration, s</translation>
+        </message>
+        <message>
+            <source>Задержка ответа, мс</source>
+            <translation>Response latency, ms</translation>
+        </message>
     </context>
     <context>
         <name>HopLocationStatsDialog</name>

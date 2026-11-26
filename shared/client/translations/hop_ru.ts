@@ -464,6 +464,14 @@
             <message><source>При длительном превышении порога Hop обновит подписку и проверит локацию снова. Отсутствие ответа тоже считается превышением.</source><translation>При длительном превышении порога Hop обновит подписку и проверит локацию снова. Отсутствие ответа тоже считается превышением.</translation></message>
             <message><source>При потере связи Hop повторяет подключение к выбранной локации.</source><translation>При потере связи Hop повторяет подключение к выбранной локации.</translation></message>
         <message><source>Приоритет</source><translation>Приоритет</translation></message>
+        <message>
+            <source>Длительность задержки, с</source>
+            <translation>Длительность задержки, с</translation>
+        </message>
+        <message>
+            <source>Задержка ответа, мс</source>
+            <translation>Задержка ответа, мс</translation>
+        </message>
     </context>
     <context>
         <name>HopLocationStatsDialog</name>

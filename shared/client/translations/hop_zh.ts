@@ -464,6 +464,14 @@
             <message><source>При длительном превышении порога Hop обновит подписку и проверит локацию снова. Отсутствие ответа тоже считается превышением.</source><translation>如果延迟持续超过阈值，Hop 会更新订阅并重新检查节点。无响应也视为超过阈值。</translation></message>
             <message><source>При потере связи Hop повторяет подключение к выбранной локации.</source><translation>连接中断后，Hop 会重新连接到所选节点。</translation></message>
         <message><source>Приоритет</source><translation>优先级</translation></message>
+        <message>
+            <source>Длительность задержки, с</source>
+            <translation>延迟持续时间，秒</translation>
+        </message>
+        <message>
+            <source>Задержка ответа, мс</source>
+            <translation>响应延迟，毫秒</translation>
+        </message>
     </context>
     <context>
         <name>HopLocationStatsDialog</name>

@@ -22,6 +22,7 @@ QtObject {
     readonly property int radius: 16
     readonly property int controlHeight: 48
     readonly property int buttonWidth: 160
+    readonly property int settingsControlWidth: 230
     readonly property Palette palette: Palette {
         window: theme.background; windowText: theme.text
         base: theme.field; alternateBase: theme.surface; text: theme.text

@@ -24,37 +24,29 @@ ColumnLayout {
         onActivated: if (root.catalog)
             root.catalog.mode = root.modeValues[currentIndex]
     }
-    PolicyLabel {
-        objectName: "hopSelectionModeDescription"
-        Layout.fillWidth: true
-        wrapMode: Text.WordWrap
-        text: !root.catalog || root.catalog.mode === 0 ? qsTr("При потере связи Hop повторяет подключение к выбранной локации.") : root.catalog.mode >= 3 ? qsTr("Hop пропускает исключённые локации и локации с задержкой выше порога.") : qsTr("Если текущая локация недоступна, Hop пробует следующие из автопула.")
-    }
-    GridLayout {
+    ColumnLayout {
         Layout.alignment: Qt.AlignLeft
         Layout.fillWidth: false
-        Layout.preferredWidth: Math.min(implicitWidth, root.width)
+        Layout.preferredWidth: Math.min(HopStyle.settingsControlWidth, root.width)
         Layout.maximumWidth: root.width
         Layout.fillHeight: false
-        columns: root.width >= 540 ? 2 : 1
-        columnSpacing: 24
-        rowSpacing: 12
+        spacing: 12
         ColumnLayout {
             objectName: "hopLatencyDurationGroup"
-            Layout.preferredWidth: Math.min(240, root.width)
+            Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.alignment: Qt.AlignTop
             spacing: 6
             PolicyLabel {
                 objectName: "hopLatencyDurationLabel"
-                text: qsTr("Длительность превышения, с")
+                text: qsTr("Длительность задержки, с")
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
             }
             HopTextField {
                 objectName: "hopLatencyDuration"
-                Layout.preferredWidth: 85
-                Layout.maximumWidth: 85
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 text: root.preferences ? root.preferences.latencySeconds : 60
                 validator: IntValidator {
                     bottom: 15
@@ -69,20 +61,20 @@ ColumnLayout {
         }
         ColumnLayout {
             objectName: "hopLatencyThresholdGroup"
-            Layout.preferredWidth: Math.min(240, root.width)
+            Layout.fillWidth: true
             Layout.minimumWidth: 0
             Layout.alignment: Qt.AlignTop
             spacing: 6
             PolicyLabel {
                 objectName: "hopLatencyThresholdLabel"
-                text: qsTr("Порог задержки, мс")
+                text: qsTr("Задержка ответа, мс")
                 Layout.fillWidth: true
                 wrapMode: Text.WordWrap
             }
             HopTextField {
                 objectName: "hopLatencyThreshold"
-                Layout.preferredWidth: 85
-                Layout.maximumWidth: 85
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 text: root.preferences ? root.preferences.latencyThreshold : 1500
                 validator: IntValidator {
                     bottom: 1
@@ -95,13 +87,6 @@ ColumnLayout {
                 }
             }
         }
-    }
-    PolicyLabel {
-        Layout.fillWidth: true
-        wrapMode: Text.WordWrap
-        text: qsTr("При длительном превышении порога Hop обновит подписку и проверит локацию снова. Отсутствие ответа тоже считается превышением.")
-        color: HopStyle.muted
-        font.pixelSize: 12
     }
     HopOrderTable {
         id: poolTable

@@ -11,7 +11,7 @@ PageType {
     enableTimer: false
     readonly property var preferences: typeof RefreshPreferences !== "undefined" ? RefreshPreferences : null
     readonly property var locations: typeof Locations !== "undefined" ? Locations : null
-    readonly property int settingsComboWidth: 230
+    readonly property int settingsComboWidth: HopStyle.settingsControlWidth
     function showBackupSection() {
         const flickable = settingsScroll.contentItem
         flickable.contentY = Math.max(0, flickable.contentHeight - flickable.height)

@@ -119,6 +119,11 @@ ApplicationWindow {
             window->setWidth(width);
             QTRY_VERIFY(visual("hopSelectionMode")->width() > width - 64);
             QTRY_VERIFY(right(visual("hopTogglePoolCountry")) > width - 44);
+            QTRY_COMPARE(duration->width(), 230);
+            QTRY_COMPARE(threshold->width(), duration->width());
+            QVERIFY(qAbs(left(duration) - left(threshold)) <= 1);
+            QVERIFY(thresholdLabel->mapToScene(QPointF()).y()
+                > duration->mapToScene(QPointF(0, duration->height())).y());
             for (const auto &pair : {qMakePair(durationLabel, duration), qMakePair(thresholdLabel, threshold)}) {
                 const auto labelBottom = pair.first->mapToScene(QPointF(0, pair.first->height())).y();
                 const auto fieldTop = pair.second->mapToScene(QPointF()).y();
@@ -1066,8 +1071,8 @@ ApplicationWindow {
         QVERIFY(QMetaObject::invokeMethod(service, "close"));
         QVERIFY(click("hopLocationPolicyButton"));
         QTRY_VERIFY(visual("hopSelectionMode"));
-        QCOMPARE(visual("hopLatencyDurationLabel")->property("text").toString(), QString::fromUtf8("Длительность превышения, с"));
-        QCOMPARE(visual("hopLatencyThresholdLabel")->property("text").toString(), QString::fromUtf8("Порог задержки, мс"));
+        QCOMPARE(visual("hopLatencyDurationLabel")->property("text").toString(), QString::fromUtf8("Длительность задержки, с"));
+        QCOMPARE(visual("hopLatencyThresholdLabel")->property("text").toString(), QString::fromUtf8("Задержка ответа, мс"));
         capture("sidebar-auto-switch");
         QVERIFY(click("hopSettingsTab"));
         QTRY_VERIFY(visual("hopSubscriptionInterval"));
@@ -1652,13 +1657,10 @@ ApplicationWindow {
         if (!capturePath.isEmpty()) { QVERIFY(window->grabWindow().save(QDir(capturePath).filePath(QStringLiteral("native-selection-menu.png")))); }
         QTest::keyClick(window, Qt::Key_Home); QTest::keyClick(window, Qt::Key_Return);
         QTRY_COMPARE(catalog.mode(), int(hop::LocationCatalog::Manual));
-        auto *description = root->findChild<QObject *>("hopSelectionModeDescription"); QVERIFY(description);
-        QTRY_VERIFY(description->property("text").toString().contains(QString::fromUtf8("повторяет")));
         modeItem->forceActiveFocus(); QVERIFY(QMetaObject::invokeMethod(popup, "open"));
         QTRY_VERIFY(popup->property("visible").toBool());
         QTest::keyClick(window, Qt::Key_Down); QTest::keyClick(window, Qt::Key_Return);
         QTRY_COMPARE(catalog.mode(), int(hop::LocationCatalog::Automatic));
-        QTRY_VERIFY(description->property("text").toString().contains(QString::fromUtf8("автопула")));
         QTest::qWait(100);
         if (!capturePath.isEmpty()) { QVERIFY(window->grabWindow().save(QDir(capturePath).filePath(QStringLiteral("native-location-policy.png")))); }
         const auto remainingPriority = catalog.priorities().last();

@@ -18,6 +18,7 @@ QtObject {
     readonly property int radius: 4
     readonly property int controlHeight: Qt.platform.os === "android" ? 48 : 36
     readonly property int buttonWidth: 160
+    readonly property int settingsControlWidth: 230
     readonly property Palette palette: Palette {
         window: theme.background
         windowText: theme.text
