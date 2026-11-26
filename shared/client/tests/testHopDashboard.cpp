@@ -782,11 +782,16 @@ ApplicationWindow {
             tray.setConnectionState(state);
             QCOMPARE(trayIcon->icon().pixmap(32, 32).toImage(), mint);
         }
-        tray.setConnectionDetails("BlancVPN", "Amsterdam", 203);
+        tray.setConnectionDetails("BlancVPN", "BlancVPN · Amsterdam", 203);
         tray.setConnectionState(Vpn::Connected);
         QVERIFY(tray.connectionToolTip().contains("BlancVPN"));
         QVERIFY(tray.connectionToolTip().contains("Amsterdam"));
         QVERIFY(tray.connectionToolTip().contains("203"));
+        QCOMPARE(tray.connectionToolTip().count("BlancVPN"), 1);
+        tray.setConnectionDetails("Brand · Premium", "Brand · Premium · Europe · City", 203);
+        QVERIFY(tray.connectionToolTip().split('\n').at(2).endsWith("Europe · City"));
+        tray.setConnectionDetails("Provider", "Europe · City", 203);
+        QVERIFY(tray.connectionToolTip().split('\n').at(2).endsWith("Europe · City"));
         tray.setConnectionDetails("Amnezia Premium", "Netherlands", 150);
         QVERIFY(tray.connectionToolTip().contains("150"));
         QVERIFY(!tray.connectionToolTip().contains("203"));

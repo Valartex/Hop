@@ -100,15 +100,27 @@ ColumnLayout {
             enabled: root.editingEnabled && root.removalEnabled && root.hasSelection
             onClicked: root.removeRequested(root.currentIndex)
         }
-        Item {
-            Layout.fillWidth: true
-        }
         HopButton {
             objectName: root.objectName + "Refresh"
             visible: root.hasRefreshAction
             text: qsTr("Обновить")
+            iconOnly: true
+            Accessible.name: text
+            ToolTip.visible: hovered
+            ToolTip.text: text
+            contentItem: Item {
+                Image {
+                    anchors.centerIn: parent
+                    width: 18; height: 18
+                    sourceSize.width: 18; sourceSize.height: 18
+                    source: "qrc:/images/controls/refresh-cw.svg"
+                }
+            }
             enabled: root.hasRefreshAction && root.editingEnabled && root.removalEnabled && root.hasSelection && root.rows[root.currentIndex].sourceRule === true && !root.rows[root.currentIndex].updating
             onClicked: root.refreshRequested(root.currentIndex)
+        }
+        Item {
+            Layout.fillWidth: true
         }
     }
     Rectangle {
@@ -221,7 +233,7 @@ ColumnLayout {
                                     active: tableCell.modelData.checkbox === true && tableRow.modelData.sourceRule === true
                                     width: item ? item.implicitWidth : 0
                                     height: item ? item.implicitHeight : 0
-                                    sourceComponent: CheckBox {
+                                    sourceComponent: HopCheckBox {
                                         id: autoCheck
                                         objectName: root.objectName + "_auto_" + tableRow.index
                                         checked: Boolean(tableRow.modelData[tableCell.modelData.role])
@@ -229,23 +241,6 @@ ColumnLayout {
                                         Accessible.name: tableCell.modelData.title
                                         ToolTip.visible: hovered
                                         ToolTip.text: qsTr("Автоматически обновлять каждый день")
-                                        indicator: Rectangle {
-                                            implicitWidth: 16
-                                            implicitHeight: 16
-                                            x: autoCheck.leftPadding
-                                            y: (autoCheck.height - height) / 2
-                                            radius: 3
-                                            color: autoCheck.checked ? HopStyle.accent : HopStyle.field
-                                            border.color: autoCheck.checked ? HopStyle.accent : HopStyle.muted
-                                            Label {
-                                                anchors.centerIn: parent
-                                                text: "✓"
-                                                visible: autoCheck.checked
-                                                color: HopStyle.background
-                                                font.pixelSize: 13
-                                                font.bold: true
-                                            }
-                                        }
                                         onClicked: {
                                             root.cellToggled(tableRow.index, tableCell.modelData.role, checked);
                                             checked = Qt.binding(function () {

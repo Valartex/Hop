@@ -101,6 +101,10 @@ void SystemTrayNotificationHandler::setConnectionDetails(const QString &subscrip
 {
     m_subscriptionName = subscription;
     m_locationName = location;
+    const auto prefix = subscription + QStringLiteral(" · ");
+    if (!subscription.isEmpty() && m_locationName.startsWith(prefix)) {
+        m_locationName.remove(0, prefix.size());
+    }
     m_latencyMs = latencyMs;
     updateConnectionToolTip();
 }
