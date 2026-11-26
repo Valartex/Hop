@@ -9,6 +9,7 @@
 #include <QQuickStyle>
 #include <QQuickWindow>
 #include <QScopeGuard>
+#include <QStyleHints>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTemporaryFile>
@@ -1315,6 +1316,93 @@ ApplicationWindow {
         QCOMPARE(policy.rules().size(), 1);
         QCOMPARE(policy.rules().first(), original.last());
         QCOMPARE(table->property("currentIndex").toInt(), 0);
+        QCOMPARE(warnings.count(), 0);
+    }
+    void systemAppearanceChangesLive()
+    {
+        auto *hints = QGuiApplication::styleHints();
+        const auto restoreAppearance = qScopeGuard([hints]() { hints->unsetColorScheme(); });
+        hints->setColorScheme(Qt::ColorScheme::Light);
+        SecureQSettings settings("Hop-System-Appearance", "memory", nullptr, true, false);
+        QQmlApplicationEngine engine;
+        engine.addImportPath(QStringLiteral("qrc:/ui/qml/Modules/"));
+        engine.rootContext()->setContextProperty("Debug", &Logger::Instance());
+        engine.rootContext()->setContextProperty("IsMacOsNeBuild", false);
+        engine.rootContext()->setContextProperty("IsPlayBuild", false);
+        const auto vpn = QSharedPointer<VpnConnection>::create(nullptr, nullptr);
+        TestCoreController core(vpn, &settings, &engine);
+        QSignalSpy warnings(&engine, &QQmlEngine::warnings);
+        engine.loadData(R"(
+import QtQuick
+import QtQuick.Controls
+import Style 1.0
+import "qrc:/ui/qml/Pages2"
+ApplicationWindow {
+    visible: true; width: 1000; height: 760; color: HopStyle.background; palette: HopStyle.palette
+    x: -10000; y: -10000; flags: Qt.Tool
+    property color themeText: HopStyle.text
+    property color themeAccent: HopStyle.accent
+    Item { objectName: "defaultFocusItem" }
+    PageStart { anchors.fill: parent }
+})", QUrl("qrc:/hop-system-appearance-test.qml"));
+        QVERIFY(!engine.rootObjects().isEmpty());
+        const auto cleanup = qScopeGuard([&engine]() { qDeleteAll(engine.rootObjects()); });
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first()); QVERIFY(window);
+        const auto visual = [&](const QString &name) { return findVisualItem(window->contentItem(), name); };
+        QTRY_VERIFY(visual("hopSidebar"));
+        auto *sidebar = visual("hopSidebar");
+        QVERIFY(visual("hopHomeTab")->mapToScene(QPointF()).y() < 24);
+        QObject owner;
+        SystemTrayNotificationHandler tray(&owner);
+        auto *trayIcon = owner.findChild<QSystemTrayIcon *>(); QVERIFY(trayIcon);
+        auto *menu = trayIcon->contextMenu(); QVERIFY(menu);
+        const auto capture = qEnvironmentVariable("HOP_TEST_CAPTURE_DIR");
+        int iteration = 0;
+        for (const auto scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark, Qt::ColorScheme::Light}) {
+            hints->setColorScheme(scheme);
+            QTRY_COMPARE(hints->colorScheme(), scheme);
+            const auto expected = hop::desktopPalette(scheme);
+            QTRY_COMPARE(window->color(), expected.color(QPalette::Window));
+            QTRY_COMPARE(sidebar->property("color").value<QColor>(), expected.color(QPalette::Button));
+            QTRY_COMPARE(window->property("themeText").value<QColor>(), expected.color(QPalette::Text));
+            QTRY_COMPARE(window->property("themeAccent").value<QColor>(), expected.color(QPalette::Accent));
+            QTRY_COMPARE(QApplication::palette().color(QPalette::Window), window->color());
+            QTRY_COMPARE(menu->palette().color(QPalette::WindowText), expected.color(QPalette::WindowText));
+            if (auto *language = visual("hopApplicationLanguage")) {
+                auto *text = language->property("contentItem").value<QQuickItem *>(); QVERIFY(text);
+                QTRY_COMPARE(text->property("color").value<QColor>(), expected.color(QPalette::Text));
+            }
+            const QList<QPair<QString, QString>> pages = {
+                {"hopAboutButton", "hopAboutWebsiteLink"},
+                {"hopHomeTab", "hopLocationSearch"}, {"hopRoutesButton", "hopRoutesDefault"},
+                {"hopLocationPolicyButton", "hopLatencyThreshold"}, {"hopSettingsTab", "hopSubscriptionInterval"}
+            };
+            for (const auto &page : pages) {
+                auto *button = visual(page.first); QVERIFY(button);
+                QVERIFY(QMetaObject::invokeMethod(button, "clicked"));
+                QTRY_VERIFY(visual(page.second));
+                if (page.first != QStringLiteral("hopHomeTab") && page.first != QStringLiteral("hopAboutButton")) {
+                    auto *control = visual(page.second);
+                    auto *text = page.first == QStringLiteral("hopLocationPolicyButton")
+                        ? control : control->property("contentItem").value<QQuickItem *>(); QVERIFY(text);
+                    QTRY_COMPARE(text->property("color").value<QColor>(), expected.color(QPalette::Text));
+                }
+                if (page.first == QStringLiteral("hopRoutesButton")) {
+                    auto *refresh = visual("hopRoutesListRefreshIcon"); QVERIFY(refresh);
+                    QCOMPARE(refresh->property("color").value<QColor>(), expected.color(QPalette::Text));
+                }
+                QTest::qWait(40);
+                if (!capture.isEmpty()) {
+                    QVERIFY(window->grabWindow().save(QDir(capture).filePath(
+                        QStringLiteral("appearance-%1-%2.png").arg(iteration).arg(page.first))));
+                }
+            }
+            if (!capture.isEmpty()) {
+                menu->ensurePolished(); menu->adjustSize();
+                QVERIFY(menu->grab().save(QDir(capture).filePath(QStringLiteral("appearance-%1-tray.png").arg(iteration))));
+            }
+            ++iteration;
+        }
         QCOMPARE(warnings.count(), 0);
     }
     void initTestCase()

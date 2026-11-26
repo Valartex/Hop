@@ -22,6 +22,10 @@ Item {
     Accessible.role: Accessible.Graphic
     Accessible.name: qsTr("Время ответа, мс")
     function requestPaint() { if (canvas) canvas.requestPaint() }
+    Connections {
+        target: HopStyle
+        function onBackgroundChanged() { root.requestPaint() }
+    }
     function timeLabel(at) { return Qt.formatDateTime(new Date(at), geometry.span >= 3 * 86400000 ? "dd.MM" : geometry.span >= 86400000 ? "dd.MM HH:mm" : geometry.span < 300000 ? "HH:mm:ss" : "HH:mm") }
     function sampleText() {
         if (!selected) return ""
@@ -59,7 +63,7 @@ Item {
                 ctx.fillText(root.timeLabel(data.start + data.span * i / (ticks - 1)),
                              root.plotLeft + root.plotWidth * i / (ticks - 1), root.failureTop + 12)
             }
-            ctx.fillStyle = "rgba(94,212,205,0.18)"
+            ctx.fillStyle = Qt.alpha(HopStyle.accent, 0.18)
             for (let i = 0; i < data.points.length; ++i) {
                 const point = data.points[i]
                 if (point.ok && point.low > point.high)
@@ -73,7 +77,7 @@ Item {
                 }
                 ctx.lineTo(last.x, root.plotTop + root.plotHeight); ctx.lineTo(first.x, root.plotTop + root.plotHeight); ctx.closePath()
                 const fill = ctx.createLinearGradient(0, root.plotTop, 0, root.plotTop + root.plotHeight)
-                fill.addColorStop(0, "rgba(94,212,205,0.22)"); fill.addColorStop(1, "rgba(94,212,205,0.02)")
+                fill.addColorStop(0, Qt.alpha(HopStyle.accent, 0.22)); fill.addColorStop(1, Qt.alpha(HopStyle.accent, 0.02))
                 ctx.fillStyle = fill; ctx.fill()
                 // Линия поверх заливки остаётся отчётливой на малых значениях.
                 ctx.beginPath(); ctx.moveTo(first.x, first.y)

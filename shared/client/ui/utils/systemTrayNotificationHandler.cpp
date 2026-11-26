@@ -13,6 +13,7 @@
 #include <QApplication>
 #include <QDesktopServices>
 #include <QIcon>
+#include <QStyleHints>
 #include <QWindow>
 
 #include "version.h"
@@ -39,11 +40,18 @@ SystemTrayNotificationHandler::SystemTrayNotificationHandler(QObject* parent) :
     if (QCoreApplication::applicationName() == QStringLiteral("Hop")) {
         m_menu.setObjectName(QStringLiteral("hopTrayMenu"));
         m_menu.setStyleSheet(QStringLiteral(
-            "QMenu { background: #1a2028; color: #eef2f5; border: 1px solid #35424e; padding: 4px; }"
-            "QMenu::item { color: #eef2f5; padding: 8px 24px; }"
-            "QMenu::item:selected { background: #26333f; color: #eef2f5; }"
-            "QMenu::item:disabled { color: #9aabb9; }"
-            "QMenu::separator { height: 1px; background: #35424e; margin: 4px 8px; }"));
+            "QMenu { background: palette(button); color: palette(window-text); border: 1px solid palette(mid); padding: 4px; }"
+            "QMenu::item { color: palette(window-text); padding: 8px 24px; }"
+            "QMenu::item:selected { background: palette(light); color: palette(window-text); }"
+            "QMenu::item:disabled { color: palette(dark); }"
+            "QMenu::separator { height: 1px; background: palette(mid); margin: 4px 8px; }"));
+        // QSS запоминает цвета палитры; обновляем их после применения новой темы приложения.
+        connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, &m_menu, [this]() {
+            const auto style = m_menu.styleSheet();
+            m_menu.setStyleSheet(QString());
+            m_menu.setPalette(QApplication::palette());
+            m_menu.setStyleSheet(style);
+        }, Qt::QueuedConnection);
         m_trayActionShow->setIcon(QIcon());
         m_trayActionVisitWebSite->setVisible(false);
     }

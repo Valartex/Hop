@@ -41,12 +41,12 @@ Pane {
     palette.text: HopStyle.text
     palette.base: HopStyle.surface
     palette.button: HopStyle.border
-    palette.buttonText: "#f1f1f3"
+    palette.buttonText: HopStyle.text
     palette.highlight: HopStyle.accent
     palette.highlightedText: HopStyle.background
-    palette.placeholderText: "#878b91"
+    palette.placeholderText: HopStyle.muted
     palette.dark: HopStyle.muted
-    palette.mid: "#878b91"
+    palette.mid: HopStyle.muted
     background: Rectangle {
         color: HopStyle.background
     }
@@ -102,7 +102,7 @@ Pane {
             Layout.fillWidth: true
             text: root.policy ? root.policy.lastError : ""
             visible: text.length > 0
-            color: "#e7a276"
+            color: HopStyle.dark ? "#e7a276" : "#924f16"
             wrapMode: Text.WordWrap
             textFormat: Text.PlainText
         }
@@ -209,7 +209,7 @@ Pane {
             visible: text.length > 0
             textFormat: Text.PlainText
             wrapMode: Text.WordWrap
-            color: "#e7a276"
+            color: HopStyle.dark ? "#e7a276" : "#924f16"
         }
         GridLayout {
             Layout.fillWidth: true

@@ -302,11 +302,6 @@ PageType {
             anchors.fill: parent
             anchors.margins: 12
             spacing: 8
-            RowLayout {
-                Layout.bottomMargin: 16
-                Image { source: "qrc:/images/hop/logo-preview.png"; sourceSize.width: 32; sourceSize.height: 32; Layout.preferredWidth: 32; Layout.preferredHeight: 32 }
-                Label { text: "Hop"; color: HopStyle.text; font.pixelSize: 23; font.weight: Font.DemiBold }
-            }
             HopButton {
                 objectName: "hopHomeTab"
                 text: qsTr("Подключения")

@@ -5,6 +5,7 @@ import Style 1.0
 
 Switch {
     id: control
+    palette.text: HopStyle.text
     implicitHeight: HopStyle.controlHeight
     Layout.minimumHeight: HopStyle.controlHeight
     Layout.maximumHeight: HopStyle.controlHeight

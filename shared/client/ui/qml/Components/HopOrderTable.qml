@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Shapes
 import Style 1.0
 
 ColumnLayout {
@@ -109,11 +110,22 @@ ColumnLayout {
             ToolTip.visible: hovered
             ToolTip.text: text
             contentItem: Item {
-                Image {
+                Shape {
+                    objectName: root.objectName + "RefreshIcon"
+                    property alias color: refreshPath.strokeColor
                     anchors.centerIn: parent
-                    width: 18; height: 18
-                    sourceSize.width: 18; sourceSize.height: 18
-                    source: "qrc:/images/controls/refresh-cw.svg"
+                    width: 24; height: 24
+                    scale: 0.75
+                    preferredRendererType: Shape.CurveRenderer
+                    ShapePath {
+                        id: refreshPath
+                        fillColor: "transparent"
+                        strokeColor: HopStyle.text
+                        strokeWidth: 2
+                        capStyle: ShapePath.RoundCap
+                        joinStyle: ShapePath.RoundJoin
+                        PathSvg { path: "M21 2V8H15 M3 12C3 10.26 3.51 8.56 4.45 7.11C5.4 5.65 6.74 4.5 8.33 3.79C9.92 3.08 11.67 2.85 13.39 3.12C15.1 3.38 16.71 4.14 18 5.3L21 8 M3 22V16H9 M21 12C21 13.74 20.49 15.44 19.55 16.89C18.6 18.35 17.26 19.5 15.67 20.21C14.08 20.92 12.33 21.15 10.61 20.88C8.9 20.62 7.29 19.86 6 18.7L3 16" }
+                    }
                 }
             }
             enabled: root.hasRefreshAction && root.editingEnabled && root.removalEnabled && root.hasSelection && root.rows[root.currentIndex].sourceRule === true && !root.rows[root.currentIndex].updating

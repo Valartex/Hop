@@ -218,7 +218,7 @@ Rectangle {
                     Layout.fillWidth: root.compact
                     emphasized: !root.disconnecting
                     opacity: root.disconnecting || enabled ? 1 : 0.45
-                    emphasisColor: root.connected && !HopStyle.mobile ? "#e2a36a" : HopStyle.accent
+                    emphasisColor: root.connected && !HopStyle.mobile ? (HopStyle.dark ? "#e2a36a" : "#a85b1e") : HopStyle.accent
                     text: root.cancelling ? qsTr("Отменяется…") : root.disconnecting ? qsTr("Отключается…") : root.connected ? qsTr("Отключить") : root.connecting ? qsTr("Отмена") : qsTr("Подключить")
                     enabled: !root.disconnecting && (root.connected || root.connecting || (root.selectedServerId.length > 0 && root.connectAvailable))
                     onClicked: root.connectRequested()
