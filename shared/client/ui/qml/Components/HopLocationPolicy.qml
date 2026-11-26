@@ -32,34 +32,6 @@ ColumnLayout {
         Layout.fillHeight: false
         spacing: 12
         ColumnLayout {
-            objectName: "hopLatencyDurationGroup"
-            Layout.fillWidth: true
-            Layout.minimumWidth: 0
-            Layout.alignment: Qt.AlignTop
-            spacing: 6
-            PolicyLabel {
-                objectName: "hopLatencyDurationLabel"
-                text: qsTr("Длительность задержки, с")
-                Layout.fillWidth: true
-                wrapMode: Text.WordWrap
-            }
-            HopTextField {
-                objectName: "hopLatencyDuration"
-                Layout.fillWidth: true
-                Layout.minimumWidth: 0
-                text: root.preferences ? root.preferences.latencySeconds : 60
-                validator: IntValidator {
-                    bottom: 15
-                    top: 3600
-                }
-                onEditingFinished: {
-                    if (acceptableInput && root.preferences)
-                        root.preferences.latencySeconds = Number(text);
-                    text = root.preferences ? root.preferences.latencySeconds : 60;
-                }
-            }
-        }
-        ColumnLayout {
             objectName: "hopLatencyThresholdGroup"
             Layout.fillWidth: true
             Layout.minimumWidth: 0
@@ -84,6 +56,34 @@ ColumnLayout {
                     if (acceptableInput && root.preferences)
                         root.preferences.latencyThreshold = Number(text);
                     text = root.preferences ? root.preferences.latencyThreshold : 1500;
+                }
+            }
+        }
+        ColumnLayout {
+            objectName: "hopLatencyDurationGroup"
+            Layout.fillWidth: true
+            Layout.minimumWidth: 0
+            Layout.alignment: Qt.AlignTop
+            spacing: 6
+            PolicyLabel {
+                objectName: "hopLatencyDurationLabel"
+                text: qsTr("Длительность задержки, с")
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+            }
+            HopTextField {
+                objectName: "hopLatencyDuration"
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                text: root.preferences ? root.preferences.latencySeconds : 60
+                validator: IntValidator {
+                    bottom: 15
+                    top: 3600
+                }
+                onEditingFinished: {
+                    if (acceptableInput && root.preferences)
+                        root.preferences.latencySeconds = Number(text);
+                    text = root.preferences ? root.preferences.latencySeconds : 60;
                 }
             }
         }

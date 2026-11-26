@@ -122,8 +122,8 @@ ApplicationWindow {
             QTRY_COMPARE(duration->width(), 230);
             QTRY_COMPARE(threshold->width(), duration->width());
             QVERIFY(qAbs(left(duration) - left(threshold)) <= 1);
-            QVERIFY(thresholdLabel->mapToScene(QPointF()).y()
-                > duration->mapToScene(QPointF(0, duration->height())).y());
+            QVERIFY(durationLabel->mapToScene(QPointF()).y()
+                > threshold->mapToScene(QPointF(0, threshold->height())).y());
             for (const auto &pair : {qMakePair(durationLabel, duration), qMakePair(thresholdLabel, threshold)}) {
                 const auto labelBottom = pair.first->mapToScene(QPointF(0, pair.first->height())).y();
                 const auto fieldTop = pair.second->mapToScene(QPointF()).y();
