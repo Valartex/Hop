@@ -177,8 +177,16 @@ bool WindowsRouteJournal::remember(const MIB_IPFORWARDROW &created)
 {
     if (!initialize()) { return false; }
     MIB_IPFORWARDROW row {}; bool exists = false;
-    if (!currentRow(created,row,exists) || !exists || row.dwForwardMetric1 != created.dwForwardMetric1) { return false; }
-    const auto identity = interfaceIdentity(row.dwForwardIfIndex); if (identity.isEmpty()) { return false; }
+    // Windows может вернуть локальный адрес интерфейса вместо нулевого next-hop.
+    // Сохраняем фактическую строку; неоднозначное совпадение не даёт права владения.
+    const bool onlink = created.dwForwardType == MIB_IPROUTE_TYPE_DIRECT && !created.dwForwardNextHop;
+    if (!currentRow(created,row,exists,onlink) || !exists || row.dwForwardMetric1 != created.dwForwardMetric1) {
+        qWarning() << "Hop route journal cannot verify newly created route; on-link" << onlink
+                   << "interface" << created.dwForwardIfIndex << "observed" << exists;
+        return false;
+    }
+    const auto identity = interfaceIdentity(row.dwForwardIfIndex);
+    if (identity.isEmpty()) { qWarning() << "Hop route journal cannot identify interface" << row.dwForwardIfIndex; return false; }
     m_rows.append({ row, identity }); if (save()) { return true; }
     m_rows.removeLast(); return false;
 }
